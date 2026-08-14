@@ -122,6 +122,14 @@ signs the app never leaves this machine, and there is no password for anyone to
 transmit. That is a shorter favour to ask than an export, and a safer one to
 grant.
 
+The request is made with `openssl` rather than through Keychain Access, and the
+certificate that comes back is paired with its key the same way. Certificate
+Assistant fails on some machines with "The specified item could not be found in
+the keychain" and offers nothing to debug; a command that behaves identically
+every time is worth more here than a dialog. Everything lives in
+`~/.securesend-signing`, and the wizard offers to remove it once the secrets are
+installed.
+
 | Secret                        | What it is                                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | `MACOS_CERTIFICATE`           | your Developer ID Application certificate and key, exported as a `.p12`, then base64 encoded |

@@ -286,26 +286,72 @@ pause "Press Enter to continue."
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "The Developer ID certificate"
 say "This starts on your machine either way. A certificate signing request holds"
-say "your ${BOLD}public${RESET} key and asks Apple to vouch for it. The private half stays in"
-say "your keychain, and it is the half that actually signs the app."
+say "your ${BOLD}public${RESET} key and asks Apple to vouch for it. The private half stays"
+say "here, and it is the half that actually signs the app."
 printf '\n'
-step "Open Keychain Access, then Certificate Assistant > Request a Certificate"
-say "  From a Certificate Authority."
-step "Put your email in, leave CA Email Address blank, choose 'Saved to disk'."
-step "Save the .certSigningRequest file somewhere you can find it."
-printf '\n'
-note "drag the file into this terminal to paste its path"
-ask CSR_PATH "Path to the .certSigningRequest:"
-CSR_PATH="${CSR_PATH/#\~/$HOME}"
-CSR_PATH="${CSR_PATH%\'}"
-CSR_PATH="${CSR_PATH#\'}"
-CSR_PATH="${CSR_PATH//\\ / }"
-if [[ ! -f "$CSR_PATH" ]]; then
-  warn "no file at: $CSR_PATH"
-  exit 1
+
+HAVE_P12="no"
+if confirm "Do you already have a .p12 holding the certificate and its key?"; then
+  HAVE_P12="yes"
 fi
-printf '  %s✓%s the private key for this now lives in your keychain and never moves\n' "$GREEN" "$RESET"
-printf '\n'
+
+if [[ "$HAVE_P12" == "no" ]]; then
+  # Made with openssl rather than through Keychain Access. Certificate Assistant
+  # fails on some machines with "The specified item could not be found in the
+  # keychain", and there is nothing to debug in a dialog. This produces the same
+  # PKCS#10 request every time, and the key never enters a keychain at all until
+  # the runner imports it.
+  SIGNING_DIR="$HOME/.securesend-signing"
+  mkdir -p "$SIGNING_DIR"
+  chmod 700 "$SIGNING_DIR"
+  CSR_PATH="$SIGNING_DIR/request.certSigningRequest"
+  KEY_PATH="$SIGNING_DIR/signing.key"
+
+  if [[ -f "$KEY_PATH" ]]; then
+    warn "there is already a signing key at $KEY_PATH"
+    say "If you are part way through this, keep it: the certificate coming back"
+    say "belongs to that key and to no other."
+    if ! confirm "Reuse the existing key and request?"; then
+      say "Move that folder aside and run this again."
+      exit 1
+    fi
+  else
+    ask CSR_EMAIL "Your email, for the request:"
+    if [[ -z "$CSR_EMAIL" ]]; then
+      warn "the request needs an email address."
+      exit 1
+    fi
+    /usr/bin/openssl req -new -newkey rsa:2048 -nodes \
+      -keyout "$KEY_PATH" \
+      -out "$CSR_PATH" \
+      -subj "/emailAddress=$CSR_EMAIL/CN=SecureSend signing" > /dev/null 2>&1
+    chmod 600 "$KEY_PATH"
+  fi
+
+  if ! /usr/bin/openssl req -in "$CSR_PATH" -noout -verify > /dev/null 2>&1; then
+    warn "the request did not come out valid. Nothing to do but try again."
+    exit 1
+  fi
+  printf '  %s✓%s request written to %s\n' "$GREEN" "$RESET" "$CSR_PATH"
+  note "the private key beside it never leaves this machine"
+  printf '\n'
+fi
+
+if [[ "$HAVE_P12" == "yes" ]]; then
+  note "drag the file into this terminal to paste its path"
+  ask P12_PATH "Path to the .p12:"
+  P12_PATH="${P12_PATH/#\~/$HOME}"
+  P12_PATH="${P12_PATH%\'}"
+  P12_PATH="${P12_PATH#\'}"
+  P12_PATH="${P12_PATH//\\ / }"
+  if [[ ! -f "$P12_PATH" ]]; then
+    warn "no file at: $P12_PATH"
+    exit 1
+  fi
+  ask_secret P12_PASSWORD "Password for the .p12:"
+fi
+
+if [[ "$HAVE_P12" == "no" ]]; then
 
 if [[ "$CERT_SELF" == "yes" ]]; then
   open_url "https://developer.apple.com/account/resources/certificates/add"
@@ -356,29 +402,52 @@ Thank you."
 fi
 
 printf '\n'
-step "Double-click the .cer to install it. Keychain Access pairs it with the"
-say "  private key it was made for, which is the one on this machine."
-step "In Keychain Access, under login > My Certificates, find the row starting"
-say "  'Developer ID Application:'. Right-click it, Export, save as a .p12,"
-say "  and give it a password you can paste in a moment."
-note "the password is yours, invented here. Nobody else ever needs it."
-pause "Done? Press Enter."
-printf '\n'
-
-say "Now point this wizard at that .p12 file."
 note "drag the file into this terminal to paste its path"
-ask P12_PATH "Path to the .p12:"
+ask CER_PATH "Path to the .cer Apple issued:"
 # Dragging a file into Terminal pastes its path with spaces backslash-escaped,
 # and some shells wrap it in quotes. Undo both before looking for the file.
-P12_PATH="${P12_PATH/#\~/$HOME}"
-P12_PATH="${P12_PATH%\'}"
-P12_PATH="${P12_PATH#\'}"
-P12_PATH="${P12_PATH//\\ / }"
-if [[ ! -f "$P12_PATH" ]]; then
-  warn "no file at: $P12_PATH"
+CER_PATH="${CER_PATH/#\~/$HOME}"
+CER_PATH="${CER_PATH%\'}"
+CER_PATH="${CER_PATH#\'}"
+CER_PATH="${CER_PATH//\\ / }"
+if [[ ! -f "$CER_PATH" ]]; then
+  warn "no file at: $CER_PATH"
   exit 1
 fi
-ask_secret P12_PASSWORD "Password for the .p12:"
+
+# Apple hands out DER. Pair it back with the key that asked for it, and the two
+# together are the .p12 the runner wants. The password is generated rather than
+# invented: it exists only to wrap the file on its way to GitHub, and nobody,
+# including you, ever has to type it again.
+P12_PATH="$SIGNING_DIR/certificate.p12"
+P12_PASSWORD="$(/usr/bin/openssl rand -base64 24)"
+
+if ! /usr/bin/openssl x509 -inform DER -in "$CER_PATH" -out "$SIGNING_DIR/certificate.pem" > /dev/null 2>&1; then
+  # Some browsers save it already converted, so try the other encoding before
+  # deciding the file is wrong.
+  if ! /usr/bin/openssl x509 -in "$CER_PATH" -out "$SIGNING_DIR/certificate.pem" > /dev/null 2>&1; then
+    warn "that file is not a certificate this can read."
+    say "It should be the .cer the download button gave you."
+    exit 1
+  fi
+fi
+
+if ! /usr/bin/openssl pkcs12 -export \
+  -inkey "$KEY_PATH" \
+  -in "$SIGNING_DIR/certificate.pem" \
+  -out "$P12_PATH" \
+  -passout pass:"$P12_PASSWORD" > /dev/null 2>&1; then
+  warn "the certificate and the key would not pair up."
+  say "That happens when the .cer was issued for a different request than the"
+  say "key in $SIGNING_DIR. If a second request was made, the certificate has to"
+  say "come from that one."
+  exit 1
+fi
+chmod 600 "$P12_PATH"
+rm -f "$SIGNING_DIR/certificate.pem"
+printf '  %s✓%s built %s\n' "$GREEN" "$RESET" "$P12_PATH"
+
+fi
 
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Checking the certificate is the right one"
@@ -408,12 +477,15 @@ fi
 
 IDENTITY="$(security find-identity -v -p codesigning "$CHECK_KEYCHAIN" | { grep "Developer ID Application" || true; } | sed -n 's/.*"\(.*\)".*/\1/p')"
 if [[ -z "$IDENTITY" ]]; then
-  warn "that .p12 imported, but it holds no Developer ID Application identity."
-  say "What it does hold:"
-  security find-identity -v -p codesigning "$CHECK_KEYCHAIN" || true
+  warn "that .p12 imported, but it holds no valid Developer ID Application identity."
+  say "Everything in it, including what macOS refuses to trust:"
+  # Without -v, so a certificate that is present but untrusted still shows up
+  # with the reason attached. -v would hide the very thing you need to read.
+  security find-identity -p codesigning "$CHECK_KEYCHAIN" 2>&1 | sed 's/^/    /' || true
   printf '\n'
-  say "An Apple Development or Apple Distribution certificate cannot sign a"
-  say "public download. It has to be Developer ID Application."
+  say "An Apple Development or Apple Distribution certificate cannot sign a public"
+  say "download; it has to be Developer ID Application. If the right name is there"
+  say "but says NOT_TRUSTED, the certificate did not come from Apple."
   exit 1
 fi
 if [[ "$(printf '%s\n' "$IDENTITY" | grep -c .)" != "1" ]]; then
@@ -543,13 +615,24 @@ say "  git push --follow-tags"
 printf '\n'
 say "The tag starts the workflow, and a notarized dmg appears on the release."
 printf '\n'
-warn "Keep the .p12 and the .p8 somewhere safe, or in the bin. GitHub will not"
-warn "show them again, and Apple will not re-issue the .p8 at all."
+warn "Keep the .p8 somewhere safe, or in the bin. GitHub will not show it again,"
+warn "and Apple will not re-issue it at all. The certificate is replaceable: the"
+warn "Account Holder can sign another request, and the team may hold five."
 printf '\n'
 
-if confirm "Delete the .p12 and .p8 from disk now?"; then
+if confirm "Delete the files this leaves on disk?"; then
   rm -f "$P12_PATH" "$P8_PATH"
-  note "deleted. They live in GitHub's secret store now."
+  if [[ "$HAVE_P12" == "no" && -n "${SIGNING_DIR:-}" ]]; then
+    # The private key too. It is inside the .p12 that GitHub now holds, and a
+    # signing key sitting in a home directory is worth nothing to you and
+    # something to somebody else.
+    rm -f "$SIGNING_DIR/signing.key" "$SIGNING_DIR/request.certSigningRequest" \
+      "$SIGNING_DIR/certificate.pem" "$SIGNING_DIR/certificate.p12"
+    rmdir "$SIGNING_DIR" 2> /dev/null || true
+    note "deleted, $SIGNING_DIR included. They live in GitHub's secret store now."
+  else
+    note "deleted. They live in GitHub's secret store now."
+  fi
 fi
 
 finish
