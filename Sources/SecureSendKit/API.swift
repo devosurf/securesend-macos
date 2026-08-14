@@ -17,6 +17,11 @@ public enum SecureSendAPI {
 
   public enum Failure: LocalizedError, Sendable {
     case idTaken
+    /// The link was real and there is nothing left to take. The status is what
+    /// the instance knows about the corpse, when it sent one.
+    case alreadyGone(SecretStatus?)
+    /// No row was ever stored under that id, which is also what a probe gets.
+    case nothingThere
     case offline(String)
     case refused(Int, String)
     case timedOut
@@ -25,6 +30,10 @@ public enum SecureSendAPI {
       switch self {
       case .idTaken:
         return "SecureSend could not pick a free id. Try again."
+      case .alreadyGone(let status):
+        return status.map(Self.gone) ?? "That link has already been used."
+      case .nothingThere:
+        return "There is nothing at that link."
       case .offline(let detail):
         return "SecureSend could not reach securesend.dev: \(detail)"
       case .refused(let status, let detail):
@@ -32,6 +41,31 @@ public enum SecureSendAPI {
       case .timedOut:
         return "SecureSend timed out reaching securesend.dev."
       }
+    }
+
+    /// One sentence for a link that is past saving, in the recipient's terms.
+    /// `used` and never `opened`: this instance watched ciphertext go out, and
+    /// whether the other end could decrypt it is a claim only that screen can make.
+    private static func gone(_ status: SecretStatus) -> String {
+      switch status.state {
+      case .used:
+        return "That link was already opened\(when(status.usedAt))."
+      case .burned:
+        return "The sender destroyed that link\(when(status.burnedAt))."
+      case .expired:
+        return "That link expired\(when(status.expiresAt))."
+      case .sealed, .unrecognised:
+        // Sealed here means somebody else won the row between the two calls.
+        return "That link is no longer available."
+      }
+    }
+
+    private static func when(_ date: Date?) -> String {
+      guard let date else { return "" }
+
+      let formatter = RelativeDateTimeFormatter()
+      formatter.unitsStyle = .full
+      return " \(formatter.localizedString(for: date, relativeTo: Date()))"
     }
   }
 

@@ -103,6 +103,17 @@ Signing and notarizing need an Apple Developer Program membership. Fork this and
 you need your own; set these five in the repository's Actions secrets and the
 workflow works unchanged.
 
+```sh
+./scripts/setup-signing.sh
+```
+
+That walks you through getting all five and installs them. It checks the
+certificate really is a Developer ID Application one with its private key, by
+importing it the same way the runner does, and it asks Apple to accept the
+notarization key before it stores anything. Both artifacts are gated on the
+Apple Developer account rather than on you, so if somebody else holds the
+account, the wizard writes the message to send them.
+
 | Secret                        | What it is                                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | `MACOS_CERTIFICATE`           | your Developer ID Application certificate and key, exported as a `.p12`, then base64 encoded |

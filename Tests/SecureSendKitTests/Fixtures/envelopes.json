@@ -1,0 +1,167 @@
+{
+  "fixtures": [
+    {
+      "expect": {
+        "credentials": null,
+        "files": [],
+        "note": "hunter2"
+      },
+      "fragmentToken": "AQB36Uewsr2Us_Ilndp97VQ4l-I_f2lZJT_hcFV_WkwY2g",
+      "name": "note-only",
+      "stored": {
+        "attachments": [],
+        "envelope": {
+          "ciphertext": "YEKlAhgYdftVMeD4E7Yh3acBt1Jn5rZarq7o29PF3pyhPUAEtXh84g",
+          "iv": "4nVDH-FK-8uMl0GI"
+        },
+        "id": "9xCVDPoRDnQpyoBR39kneQ"
+      }
+    },
+    {
+      "expect": {
+        "credentials": null,
+        "files": [],
+        "note": "smörgås 🔐 \n\ttabbed \"quoted\" \\ backslash"
+      },
+      "fragmentToken": "AQBbEiVeRdQJbqfDnzLBk23D1HrMpB5dpxCQ4lqTngwgnA",
+      "name": "note-unicode",
+      "stored": {
+        "attachments": [],
+        "envelope": {
+          "ciphertext": "CycM02_zqKzozmLr79Hn10d2e163D5f3zY7C6pJ_3xs3I5rQkSpWb0YCuKSpcjVwEr6s2fbv7FHbLn65YY3Per3B4KDSL7E8iC0IvnUFfh8vKw",
+          "iv": "gTzrWXs4ZJ_dbZ3E"
+        },
+        "id": "cwdxRFntPtUmxw9JhCZlJA"
+      }
+    },
+    {
+      "expect": {
+        "credentials": {
+          "password": "correct horse",
+          "username": "ada@example.com"
+        },
+        "files": [],
+        "note": null
+      },
+      "fragmentToken": "AQDXVA0lX_jsyvPFwsQFLfR_oTlVUfW6V_nKL-jgMKIDDw",
+      "name": "credentials-only",
+      "stored": {
+        "attachments": [],
+        "envelope": {
+          "ciphertext": "9i4hyymcA41a_2NtOmGPImgoefdGEKdLlm-ln3patv-LTu9AXg0k5_87sB1T-6y7GE2ROXYbBodsh_gl8q-FIJcGu-Gq50HiCov5mXpTdUwovAMZyQYpVSovpxAWh4o",
+          "iv": "2wmTrFY0zM1qCfpP"
+        },
+        "id": "7oncRzjgOEhpGnE2YTstAQ"
+      }
+    },
+    {
+      "expect": {
+        "credentials": {
+          "password": "s3cr3t",
+          "username": "root"
+        },
+        "files": [],
+        "note": "the staging box"
+      },
+      "fragmentToken": "AQBDZE5lHGzRUiinoTv4PHKe52A1dQFfqMTNWFrNIGmfsA",
+      "name": "note-and-credentials",
+      "stored": {
+        "attachments": [],
+        "envelope": {
+          "ciphertext": "aPWGrwvo8vj7rtOODHou_n5Tx6vJMUCKAJRQHNFU63fGPkvcDXzzHu2KB_xLS22DaFkUwircJZLe6unpM57fdO1pLkyUNMTHmd4Uc8u7i9ZABIrJjoEZ5moOryWel4BqVAEVbCOi",
+          "iv": "4RBbWTvHPj8pWzhk"
+        },
+        "id": "Idpmd_Kxr1kx9LfHRSceTA"
+      }
+    },
+    {
+      "expect": {
+        "credentials": null,
+        "files": [
+          {
+            "base64": "Zmlyc3QgZmlsZSBib2R5",
+            "name": "first.txt",
+            "size": 15,
+            "type": "text/plain"
+          },
+          {
+            "base64": "AAEC/f7/",
+            "name": "second.bin",
+            "size": 6,
+            "type": ""
+          }
+        ],
+        "note": "two files"
+      },
+      "fragmentToken": "AQCPMGYzMkfHd9VA1PX6l7BInTue35MudTqRwyERWCv6uw",
+      "name": "files",
+      "stored": {
+        "attachments": [
+          {
+            "index": 0,
+            "ciphertext": "M5dEZ8VxtV8cJsvAmFCRju9J8J_JIeVt65K9-8pXbQ",
+            "iv": "Qxd31-AbOSCWFUFC"
+          },
+          {
+            "index": 1,
+            "ciphertext": "5F_fcIzzECHYO59o_RDfFwI7XGMscw",
+            "iv": "lXfeQwERwpWYqM7-"
+          }
+        ],
+        "envelope": {
+          "ciphertext": "_zgMPKgq-kt_WN2hm-HX35npm0mkHv_ieMyk6bUSevsGHt16jGSG7oJwhxJA7EInr8R7o_7kpMTNW59zINQu_3vDVQQpRIZ9BCtoBUjPU0rQxtolp50jgedDiFDepCNun8FNEgWeDeTaVjQxslS2YfTOe5YUhU11X5H0UOPYQTPAdJi6HGbwrOcNT7QPhKiX",
+          "iv": "OgvBdI_6ZRPhhrh_"
+        },
+        "id": "7ZvOPsQqRaoe3wNGdIPJuQ"
+      }
+    },
+    {
+      "expect": {
+        "credentials": null,
+        "files": [
+          {
+            "base64": "YWxvbmU=",
+            "name": "solo.txt",
+            "size": 5,
+            "type": "text/plain"
+          }
+        ],
+        "note": null
+      },
+      "fragmentToken": "AQABNNRBvKe3iXwqqZqYL05Ax9nct0ScfguwHWclJJweVQ",
+      "name": "files-only",
+      "stored": {
+        "attachments": [
+          {
+            "index": 0,
+            "ciphertext": "YOCj6HQG7U7y3x7NPFtwotQ_Sd64",
+            "iv": "SPtGhZg21D_peJ6P"
+          }
+        ],
+        "envelope": {
+          "ciphertext": "TJ0SWfCAJJ27iiIclbHVCl8Xvq8qXd1WUq1Agxsd5rrUGOtTqQdNuW3nU9Op3ysCacFXdA_6gBNyTHSt25I8ow_TctWHQOkC-k_fVvbOl4pp6A",
+          "iv": "rQDkgqSiLIF6AMeX"
+        },
+        "id": "3Rsis5igGrZG1zPW9LgRjg"
+      }
+    },
+    {
+      "expect": {
+        "credentials": null,
+        "files": [],
+        "note": "behind a password"
+      },
+      "fragmentToken": "AQE-O9h35edW4n9AI-QH-7T599W0WWykW3u8uOZTcidHIayP-D9I94-Lpl6yjff4kso",
+      "name": "password-protected",
+      "password": "открыть-sesame",
+      "stored": {
+        "attachments": [],
+        "envelope": {
+          "ciphertext": "8nRoGvKNtU_XxW1iYm-GUkvA1fdIC209QdqdUTbL-6zZ5iaM48JVrcTh17jWrMzfLhw",
+          "iv": "UTdihTEdrcLKm5RA"
+        },
+        "id": "tAxdphkk-9cI_-w-cC41TA"
+      }
+    }
+  ]
+}
