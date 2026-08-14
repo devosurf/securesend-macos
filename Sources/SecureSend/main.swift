@@ -72,6 +72,12 @@ final class StatusUI {
       withTitle: "Or select text anywhere, then right-click", action: nil, keyEquivalent: ""
     ).isEnabled = false
     menu.addItem(.separator())
+    let updates = menu.addItem(
+      withTitle: "Check for updates…",
+      action: #selector(AppActions.checkForUpdates),
+      keyEquivalent: ""
+    )
+    updates.target = AppActions.shared
     let reveal = menu.addItem(
       withTitle: "Reveal log in Finder", action: #selector(AppActions.revealLog), keyEquivalent: ""
     )
@@ -146,6 +152,10 @@ final class AppActions: NSObject {
 
   @objc func consumeFromClipboard() {
     Consume.fromClipboard()
+  }
+
+  @objc func checkForUpdates() {
+    Updates.check()
   }
 
   @objc func revealLog() {

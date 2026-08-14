@@ -3,10 +3,9 @@ set -euo pipefail
 
 # Moves the app to a new version. One script, because the git tag, the two
 # Info.plist version keys and the name on the release page are the same number,
-# and a Check for updates item, once the app has one, can only work by comparing
-# the number in the bundle against the number on the release page. The release
-# workflow refuses to build a tag whose plist disagrees with it, so this is the
-# only supported way to bump.
+# and Check for updates compares the number in the bundle against the tag on the
+# release page. The release workflow refuses to build a tag whose plist disagrees
+# with it, so this is the only supported way to bump.
 #
 #   ./scripts/version.sh 0.2.0
 
