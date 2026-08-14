@@ -37,7 +37,7 @@ enum Consume {
     case .incomplete:
       // The key lives after the `#`, and chat clients drop it. Nothing was
       // requested and nothing was destroyed, so this is a fix to teach.
-      tell(
+      Alerts.tell(
         "That link is missing its key.",
         "Everything after the # is what opens it. Ask the sender to send the whole link.",
         style: .warning
@@ -50,7 +50,7 @@ enum Consume {
 
   private static func consume(id: String, fragment: String) async {
     guard case .ok(let token) = SecureSendCrypto.decodeFragmentToken(fragment) else {
-      tell(
+      Alerts.tell(
         "That link is missing its key.",
         "The part after the # is damaged. Ask the sender to send the whole link.",
         style: .warning
@@ -67,7 +67,7 @@ enum Consume {
       // which may still carry the newline a chat client left on the front of it.
       // See SecureSendLink.url.
       guard let url = SecureSendLink.url(id: id, fragment: fragment) else {
-        tell("SecureSend could not open that link.", "Open it in your browser.", style: .warning)
+        Alerts.tell("SecureSend could not open that link.", "Open it in your browser.", style: .warning)
         return
       }
 
@@ -81,8 +81,8 @@ enum Consume {
     do {
       status = try await SecureSendAPI.status(id: id)
     } catch {
-      log("consume", "FAIL", "status: \(short(error))")
-      tell("SecureSend could not check that link.", error.localizedDescription, style: .warning)
+      log("consume", "FAIL", "status: \(Alerts.short(error))")
+      Alerts.tell("SecureSend could not check that link.", error.localizedDescription, style: .warning)
       return
     }
 
@@ -90,7 +90,7 @@ enum Consume {
       // Nothing is sent at a link that is already spent, so the reveal that would
       // have told us this the expensive way never happens.
       log("consume", "dead", "state=\(status.state)")
-      tell(
+      Alerts.tell(
         "That link is already gone.",
         SecureSendAPI.Failure.alreadyGone(status).localizedDescription,
         style: .warning
@@ -122,7 +122,7 @@ enum Consume {
     open.hasDestructiveAction = true
     alert.addButton(withTitle: "Cancel")
 
-    return runModal(alert) == .alertFirstButtonReturn
+    return Alerts.run(alert) == .alertFirstButtonReturn
   }
 
   /// Everything past the point of no return.
@@ -132,8 +132,8 @@ enum Consume {
       stored = try await SecureSendAPI.reveal(id: id)
     } catch {
       // Nothing was destroyed unless the reveal succeeded, and it did not.
-      log("consume", "FAIL", "reveal: \(short(error))")
-      tell("That secret was not opened.", error.localizedDescription, style: .warning)
+      log("consume", "FAIL", "reveal: \(Alerts.short(error))")
+      Alerts.tell("That secret was not opened.", error.localizedDescription, style: .warning)
       return
     }
 
@@ -143,8 +143,8 @@ enum Consume {
     do {
       opened = try SecureSendCrypto.open(stored: stored, token: token)
     } catch {
-      log("consume", "LOST", "open: \(short(error))")
-      tell(
+      log("consume", "LOST", "open: \(Alerts.short(error))")
+      Alerts.tell(
         "The link was used up, but the secret could not be opened.",
         """
         \(error.localizedDescription)
@@ -195,7 +195,7 @@ enum Consume {
     if let saveFailure {
       // Saving stops at the first file it cannot write, so some may have landed
       // and some may not. Claiming either way would be a guess.
-      tell(
+      Alerts.tell(
         "The secret was opened, but its files could not all be saved.",
         """
         \(saveFailure)
@@ -236,7 +236,7 @@ enum Consume {
     alert.addButton(withTitle: "Show in Finder")
     alert.addButton(withTitle: "Done")
 
-    if runModal(alert) == .alertFirstButtonReturn {
+    if Alerts.run(alert) == .alertFirstButtonReturn {
       NSWorkspace.shared.activateFileViewerSelecting(saved)
     }
   }
@@ -247,28 +247,6 @@ enum Consume {
     log("consume", "none")
     StatusUI.shared.flash("exclamationmark.triangle.fill")
     NSSound.beep()
-    tell(message, "Copy a SecureSend link, then try again.", style: .informational)
-  }
-
-  private static func tell(_ message: String, _ detail: String, style: NSAlert.Style) {
-    let alert = NSAlert()
-    alert.alertStyle = style
-    alert.messageText = message
-    alert.informativeText = detail
-    alert.addButton(withTitle: "OK")
-    _ = runModal(alert)
-  }
-
-  /// The app has no windows and no Dock icon, so it has to come forward on its
-  /// own or the panel opens behind whatever the person was looking at.
-  private static func runModal(_ alert: NSAlert) -> NSApplication.ModalResponse {
-    NSApp.activate()
-    return alert.runModal()
-  }
-
-  /// An error's own words, never a secret's. Every error that reaches here is one
-  /// this app wrote, and none of them quotes a link, an id or any plaintext.
-  private static func short(_ error: any Error) -> String {
-    (error as? LocalizedError)?.errorDescription ?? "\(type(of: error))"
+    Alerts.tell(message, "Copy a SecureSend link, then try again.", style: .informational)
   }
 }
