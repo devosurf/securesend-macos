@@ -1,0 +1,114 @@
+name: release
+
+# Push a tag that scripts/version.sh made and this produces the download: a
+# notarized, stapled dmg attached to the GitHub release, with no step in between
+# for a human to do or forget. Check for updates in the app reads
+# releases/latest, so the tag, the version in the bundle and the name on the
+# release page have to be the same number. The first job is where that is
+# checked rather than hoped for.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    # No repository guard: a fork with its own five secrets is meant to be able
+    # to tag and get its own signed build. Without them the first step that
+    # needs one says so and stops.
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: version
+        name: Check the tag against the bundle
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          short=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Resources/Info.plist)
+          if [ "$tag" != "$short" ] || [ "$tag" != "$bundle" ]; then
+            echo "The tag says $tag, CFBundleShortVersionString says $short, CFBundleVersion says $bundle." >&2
+            echo "An installed copy would compare the wrong numbers. Bump with scripts/version.sh, which sets all three." >&2
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+
+      # A keychain that exists for this run only. The certificate arrives as a
+      # base64 .p12 and never touches the disk in any other form. The identity is
+      # read back out rather than named in a secret, so there is nothing to keep
+      # in step when the certificate is renewed.
+      - id: identity
+        name: Import the Developer ID certificate
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$CERTIFICATE" ]; then
+            echo "MACOS_CERTIFICATE is not set. A fork needs its own signing certificate; see the README." >&2
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -base64 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$keychain" -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          # Without this, codesign stops for a UI prompt nobody is there to answer.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          security list-keychain -d user -s "$keychain" login.keychain-db
+          # `|| true` so that finding none is answered by the count below rather
+          # than by grep's exit code killing the step without saying anything.
+          identity=$(security find-identity -v -p codesigning "$keychain" | { grep "Developer ID Application" || true; } | sed -n 's/.*"\(.*\)".*/\1/p')
+          if [ "$(printf '%s\n' "$identity" | grep -c .)" != "1" ]; then
+            echo "Expected exactly one Developer ID Application identity in the keychain, found:" >&2
+            security find-identity -v -p codesigning "$keychain" >&2
+            exit 1
+          fi
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+
+      # The envelope check ci.yml runs on main. A tag is not a push to main, so
+      # it runs here too rather than shipping a dmg nothing looked at.
+      - name: Check the envelope still seals
+        run: |
+          swift build -c release --product vector
+          ./.build/release/vector seal "release smoke test"
+
+      - name: Build, sign, notarize, staple
+        env:
+          SIGN_IDENTITY: ${{ steps.identity.outputs.identity }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY }}
+        run: |
+          if [ -z "$NOTARY_KEY_P8" ]; then
+            echo "NOTARY_KEY is not set, so this would build a dmg Gatekeeper refuses. See the README." >&2
+            exit 1
+          fi
+          echo "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          NOTARY_KEY="$RUNNER_TEMP/notary.p8" OUT="$RUNNER_TEMP/dist" ./scripts/package.sh
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+      - name: Attach the dmg to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dmg="$RUNNER_TEMP/dist/SecureSend-$VERSION.dmg"
+          sum=$(shasum -a 256 "$dmg" | cut -d " " -f 1)
+          printf '%s\n\n%s\n\n%s\n' \
+            "SecureSend for macOS $VERSION. Signed and notarized, so it opens without a right-click. Requires macOS 14 or later." \
+            "Drag it to Applications, then find it in the menu bar. What it does and what it never sends is in the [README](https://github.com/${GITHUB_REPOSITORY}#readme)." \
+            "\`SecureSend-$VERSION.dmg\` sha256 \`$sum\`" \
+            > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" "$dmg" \
+            --title "SecureSend $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"

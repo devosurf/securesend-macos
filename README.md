@@ -72,6 +72,54 @@ web app's `packages/crypto`. Every constant is named after its counterpart there
 so drift in either shows up as a failed round trip. `vector seal <note>` prints
 what this app would send, for checking that by hand.
 
+## Releasing it
+
+One number lives in three places: the git tag, `CFBundleShortVersionString` and
+`CFBundleVersion` in the Info.plist, and the name on the release page. Check for
+updates compares the number in your copy against the number on `releases/latest`,
+so if those drift apart an installed app is told the wrong thing. One script sets
+all of them and the release refuses to build when they disagree.
+
+```sh
+./scripts/version.sh 0.2.0
+git push --follow-tags
+```
+
+That is the whole release. The tag starts
+[`.github/workflows/release.yml`](.github/workflows/release.yml) on a macOS
+runner, which builds the app, signs it with the Developer ID certificate,
+notarizes it with Apple, staples the ticket to both the app and the dmg, and
+attaches `SecureSend-0.2.0.dmg` to the GitHub release with its sha256 in the
+notes. Nothing between the tag and the download is done by hand.
+
+`./scripts/package.sh` is the same build, runnable here. With
+`SIGN_IDENTITY` alone it produces a signed dmg that only opens on this machine,
+which is enough to check the packaging. Add the notary variables and it produces
+the real thing.
+
+### The secrets a fork needs
+
+Signing and notarizing need an Apple Developer Program membership. Fork this and
+you need your own; set these five in the repository's Actions secrets and the
+workflow works unchanged.
+
+| Secret                        | What it is                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| `MACOS_CERTIFICATE`           | your Developer ID Application certificate and key, exported as a `.p12`, then base64 encoded |
+| `MACOS_CERTIFICATE_PASSWORD`  | the password you gave that export                                                            |
+| `NOTARY_KEY`                  | an App Store Connect API key, the `.p8` file, base64 encoded                                 |
+| `NOTARY_KEY_ID`               | that key's Key ID                                                                            |
+| `NOTARY_ISSUER_ID`            | the Issuer ID shown above the key list                                                       |
+
+`base64 -i certificate.p12 | pbcopy` gets a file into a secret. The signing
+identity itself is not a secret: the workflow reads it back out of the imported
+certificate, so renewing the certificate is one secret to replace and nothing
+else to keep in step.
+
+An API key rather than an Apple ID and an app-specific password, because the key
+is scoped to notarization, can be revoked on its own, and does not put a personal
+Apple ID credential into a repository.
+
 ## License
 
 AGPL-3.0-or-later, the same as the rest of SecureSend. See [LICENSE](LICENSE).

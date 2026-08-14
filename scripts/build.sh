@@ -10,6 +10,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${DEST:-$HOME/Applications}"
 APP="$DEST/SecureSend.app"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+# Set REGISTER=false when the bundle is on its way into a dmg rather than into
+# use, so a copy that is about to be deleted does not end up in Launch Services.
+REGISTER="${REGISTER:-true}"
 
 swift build -c release --package-path "$ROOT" --product SecureSend
 
@@ -23,11 +26,21 @@ mkdir -p "$APP/Contents/MacOS"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$BIN" "$APP/Contents/MacOS/SecureSend"
 
-codesign --force --options runtime --sign "$SIGN_IDENTITY" "$APP"
+# A real identity signs with a secure timestamp, because notarization refuses a
+# bundle without one. Ad-hoc signing cannot have one at all.
+TIMESTAMP=(--timestamp)
+if [ "$SIGN_IDENTITY" = "-" ]; then
+	TIMESTAMP=(--timestamp=none)
+fi
 
-# Tell Launch Services the bundle exists, then rebuild the services database, or
-# the right-click entries will not appear until the next login.
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
-/System/Library/CoreServices/pbs -flush
+codesign --force --options runtime "${TIMESTAMP[@]}" --sign "$SIGN_IDENTITY" "$APP"
 
-echo "built and registered: $APP"
+if [ "$REGISTER" = true ]; then
+	# Tell Launch Services the bundle exists, then rebuild the services database,
+	# or the right-click entries will not appear until the next login.
+	/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
+	/System/Library/CoreServices/pbs -flush
+	echo "built and registered: $APP"
+else
+	echo "built: $APP"
+fi
