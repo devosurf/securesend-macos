@@ -570,7 +570,42 @@ if [[ "$KEY_SELF" == "yes" ]]; then
   step "Generate API Key. Name it 'SecureSend notarization', role Developer."
   step "Download the .p8. Apple allows that download exactly once."
   step "Note the Key ID on the row, and the Issuer ID shown above the list."
-  pause "Done? Press Enter."
+  printf '\n'
+
+  # Generating keys needs an Admin, but switching the API on for the team at all
+  # is Account Holder only, and it is off until somebody does it. An Admin
+  # landing here first sees a greyed out Request Access button and no way
+  # forward, which looks like a permissions bug and is a one-click favour.
+  if ! confirm "Did that page let you generate a key?"; then
+    printf '\n'
+    say "Then the API has never been switched on for this team. Only the Account"
+    say "Holder can do that, and it is one click. Nothing comes back to you: once"
+    say "it is on, you make the key yourself."
+    printf '\n'
+    REQUEST="One more click on the Apple account, about a minute, and nothing to send me.
+
+Go to https://appstoreconnect.apple.com/access/integrations/api and press
+Request Access. That switches on the App Store Connect API for the team. Only
+the Account Holder can do it, which is why it is you again.
+
+Once it is on I can generate the key I need myself and you are done with this.
+
+Thank you."
+    printf '%s\n' "$REQUEST"
+    printf '\n'
+    if command -v pbcopy > /dev/null 2>&1; then
+      if confirm "Copy that message to the clipboard?"; then
+        printf '%s' "$REQUEST" | pbcopy
+        note "copied"
+      fi
+    fi
+    printf '\n'
+    CERT_HOME="${SIGNING_DIR:-the folder it came from}"
+    say "The certificate work is safe, it is in"
+    say "  $CERT_HOME"
+    say "Run this again once he has pressed the button."
+    exit 0
+  fi
   printf '\n'
 else
   say "This one is a real private key, unlike the certificate request, so it does"
