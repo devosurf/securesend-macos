@@ -94,6 +94,7 @@ Services caching. `./scripts/build.sh` flushes it, and a logout always fixes it.
 | `Sources/SecureSendKit`  | the crypto envelope, the API calls, the mark             |
 | `Sources/vector`         | seals, creates and consumes from the terminal            |
 | `Sources/preview`        | renders the menu bar mark at candidate sizes             |
+| `Sources/icon`           | draws the app icon, via `scripts/icon.sh`                |
 | `Tests/SecureSendKitTests` | the offline checks, including the cross-implementation ones |
 | `Resources/Info.plist`   | the Services registration, which is the whole contract   |
 
