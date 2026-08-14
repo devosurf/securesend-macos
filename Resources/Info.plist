@@ -72,6 +72,36 @@
 			<key>NSRequiredContext</key>
 			<dict/>
 		</dict>
+		<!-- Files picked in Finder.
+
+		     Named apart from the text service above rather than sharing its
+		     wording. Only one of the two is ever offered at a time, since a
+		     selection is either text or files, but they are both in the Services
+		     list in System Settings that the README sends people to for a keyboard
+		     shortcut, and two rows reading the same thing there is a choice nobody
+		     can make. Plural whatever the count, the way Finder's own entries are.
+
+		     public.data rather than public.item, so the service is offered for
+		     files and not for folders or packages. A folder is not one file with a
+		     size, and this app does not archive anything. NSSendFileTypes is the
+		     whole registration: the pasteboard that arrives carries file urls. -->
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Copy files as SecureSend link</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>copyFilesToClipboard</string>
+			<key>NSPortName</key>
+			<string>SecureSend</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>NSRequiredContext</key>
+			<dict/>
+		</dict>
 	</array>
 </dict>
 </plist>

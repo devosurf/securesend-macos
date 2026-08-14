@@ -31,7 +31,7 @@ import SecureSendKit
 // product. Lengths and hosts only. See Log.swift.
 
 /// A right-click has no screen to choose an expiry on, so the app picks one.
-private let defaultExpiry = SecureSendAPI.Expiry.oneDay
+let defaultExpiry = SecureSendAPI.Expiry.oneDay
 
 // MARK: - Menu bar presence
 
@@ -98,6 +98,15 @@ final class StatusUI {
     guard held.contains(shortcut) else { return }
     item.keyEquivalent = shortcut.menuKeyEquivalent.key
     item.keyEquivalentModifierMask = shortcut.menuKeyEquivalent.modifiers
+  }
+
+  /// For work that outlasts a flash. A file has to be read, encrypted and
+  /// uploaded before there is anything to confirm, and a mark that expired
+  /// halfway through would say the opposite of what is happening.
+  func hold(_ symbol: String) {
+    guard let button = statusItem?.button else { return }
+    restore?.cancel()
+    button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
   }
 
   /// Momentary confirmation, so nothing needs a notification permission.
@@ -223,6 +232,17 @@ final class ServiceProvider: NSObject {
       errorOut?.pointee = (error.localizedDescription as NSString)
       StatusUI.shared.flash("exclamationmark.triangle.fill")
     }
+  }
+
+  /// Files picked in Finder. This one answers the host nothing, so it returns at
+  /// once and says what happened through the menu bar and a panel. See Files.swift
+  /// for why that is not the same shape as the two above.
+  @objc func copyFilesToClipboard(
+    _ pboard: NSPasteboard,
+    userData: String?,
+    error errorOut: AutoreleasingUnsafeMutablePointer<NSString>?
+  ) {
+    Files.send(Files.urls(on: pboard))
   }
 }
 

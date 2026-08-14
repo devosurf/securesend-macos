@@ -8,11 +8,15 @@ The app asks for no Accessibility, no Input Monitoring and no notifications, and
 it never reads your clipboard to find out whether there is a link on it. macOS
 Services are the whole mechanism on the way out: the system hands the app your
 selection, the app hands back a link, and the host application puts it where the
-selection was.
+selection was. Files work the same way, from Finder.
 
 The one thing macOS may ask you is its standard "access files in your Downloads
 folder" consent, and only if somebody sends you a secret with files in it, at the
-moment those files are saved. Nothing else in the app touches a protected folder.
+moment those files are saved. Sending a file does not ask, even out of a
+protected folder: a file you picked in Finder is handed to the app by the system,
+which is consent you already gave by picking it. Measured on 26.5, sending a file
+off the Desktop, with no entry for this app in the privacy database before or
+after. Nothing else here touches a protected folder.
 
 The secret is encrypted on your machine before anything leaves it, with the same
 AES-256-GCM envelope the web app uses. The key rides in the link's fragment, the
@@ -29,6 +33,11 @@ it like one.**
 - **Copy as SecureSend link.** The same thing, but the link lands on your
   clipboard and the selection is left alone. This is the fallback for anything
   that will not take a replacement, and for text you cannot edit.
+- **Copy files as SecureSend link.** Pick files in Finder, right-click, and they
+  go the same way: encrypted here, uploaded as ciphertext, and the link lands on
+  your clipboard. Up to 10 files and 10 MB in one link, which is what the server
+  stores. Anything past that is refused before a byte is read, so a disk image
+  costs you a sentence rather than a minute.
 - **Generate from clipboard.** Copy the secret, press control-shift-C, and the
   link replaces it on your clipboard. Also in the menu bar item, for when there
   is no live selection.
@@ -48,9 +57,9 @@ combinations, macOS gives it to whichever asked first and says nothing to either
 so the symptom is a shortcut that quietly does nothing; the menu bar item does
 the same job in the meantime.
 
-The two Services ship with no shortcut at all, because every obvious combination
-is somebody else's. You can give them one yourself in System Settings > Keyboard
-> Keyboard Shortcuts > Services.
+The three Services ship with no shortcut at all, because every obvious
+combination is somebody else's. You can give them one yourself in System Settings
+> Keyboard > Keyboard Shortcuts > Services.
 
 ## Opening a link
 
@@ -135,6 +144,7 @@ For checking the wire on purpose, `vector` does each step by hand:
 ```sh
 vector seal "a note"      # the sealed envelope as json, no network
 vector create "a note"    # posts it and prints the link
+vector send a.txt b.pdf   # the Finder service without Finder: posts the files
 vector status <link>      # what is at a link. Destroys nothing
 vector consume <link>     # the receiving side, end to end. Destroys the link
 vector updates 0.1.0      # what the releases api names, and how it ranks
