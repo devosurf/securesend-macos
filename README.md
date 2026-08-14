@@ -110,9 +110,11 @@ workflow works unchanged.
 That walks you through getting all five and installs them. It checks the
 certificate really is a Developer ID Application one with its private key, by
 importing it the same way the runner does, and it asks Apple to accept the
-notarization key before it stores anything. Both artifacts are gated on the
-Apple Developer account rather than on you, so if somebody else holds the
-account, the wizard writes the message to send them.
+notarization key before it stores anything. The two are gated at different
+heights: a Developer ID certificate can only be created by the account's Account
+Holder, while the notarization key needs no more than an Admin. The wizard asks
+which of those you are, and for whatever you cannot make yourself it writes the
+message to send the person who can.
 
 | Secret                        | What it is                                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------------------ |

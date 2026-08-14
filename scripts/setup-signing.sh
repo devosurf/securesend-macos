@@ -193,7 +193,8 @@ TOTAL_STAGES=7
 ENV_FILE="/dev/null"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SELF_SERVE="no"
+CERT_SELF="no"
+KEY_SELF="no"
 
 banner "SecureSend for macOS: signing and notarization"
 
@@ -236,32 +237,56 @@ fi
 
 # ── 2 ─────────────────────────────────────────────────────────────────────
 stage "Who is allowed to create these"
-say "Two artifacts are needed, and Apple gates both on the account, not on you:"
+say "Two artifacts are needed, and Apple gates them at different heights:"
 printf '\n'
-step "A Developer ID Application certificate. Only the ${BOLD}Account Holder${RESET} of"
-say "  the Apple Developer team can create one, and a team may hold five in total."
-step "An App Store Connect API key for notarization. Needs ${BOLD}Account Holder or Admin${RESET}."
+step "A Developer ID Application certificate. ${BOLD}Account Holder only${RESET}, and there"
+say "  is exactly one of those on a team. A team may hold five certificates."
+step "An App Store Connect API key. ${BOLD}Account Holder or Admin${RESET}, so an Admin can"
+say "  make this one without troubling anybody."
 printf '\n'
-say "For SecureSend that team is Morgan Jonasson Consulting AB, and the Account"
-say "Holder is Morgan. So either you are signed in to that account, or Morgan"
-say "makes both and sends them to you. This wizard handles both."
+say "The team is Morgan Jonasson Consulting AB. Your own role decides how much of"
+say "this you can do without him. Check it under Users and Access if you are not"
+say "sure."
+printf '\n'
+say "  ${BOLD}1${RESET}  Signed in as the Account Holder, so you can do both"
+say "  ${BOLD}2${RESET}  Signed in with your own Admin account, so the key is yours to make"
+say "     and only the certificate needs the Account Holder"
+say "  ${BOLD}3${RESET}  No access to that account, so both have to come from him"
 printf '\n'
 
-if confirm "Are you signed in to that Apple Developer account yourself?"; then
-  SELF_SERVE="yes"
+# Bounded, so a closed stdin ends the wizard instead of spinning on an empty
+# answer forever.
+ACCESS=""
+ATTEMPTS=0
+while [[ ! "$ACCESS" =~ ^[123]$ ]]; do
+  if ((ATTEMPTS >= 3)); then
+    warn "no answer after three tries, stopping. Nothing has been changed."
+    exit 1
+  fi
+  ATTEMPTS=$((ATTEMPTS + 1))
+  ask ACCESS "Which one are you? [1, 2 or 3]"
+done
+
+case "$ACCESS" in
+  1) CERT_SELF="yes"; KEY_SELF="yes" ;;
+  2) CERT_SELF="no"; KEY_SELF="yes" ;;
+  3) CERT_SELF="no"; KEY_SELF="no" ;;
+esac
+
+if [[ "$CERT_SELF" == "yes" ]]; then
   note "you will create both artifacts in the next stages"
 else
-  SELF_SERVE="no"
   printf '\n'
-  say "Here is the message to send Morgan. It asks for both artifacts at once so"
-  say "he only has to sit down for this a single time."
+  if [[ "$KEY_SELF" == "yes" ]]; then
+    say "Then Morgan owes you one thing, the certificate. Here is the message."
+  else
+    say "Then Morgan owes you both. Here is the message, asking for them together"
+    say "so he only has to sit down for this once."
+  fi
   printf '\n'
-  REQUEST=$(
-    cat << 'REQUEST_END'
-Hi Morgan, I need two things from the MJC AB Apple Developer account to sign and
-notarize the SecureSend Mac app. Both are Account Holder gated, which is why I
-cannot make them myself. It is about fifteen minutes in total.
 
+  REQUEST_CERT=$(
+    cat << 'REQUEST_END'
 1. A Developer ID Application certificate.
    - In Keychain Access: Certificate Assistant > Request a Certificate From a
      Certificate Authority. Enter your email, leave CA Email blank, choose
@@ -274,6 +299,11 @@ cannot make them myself. It is about fifteen minutes in total.
      a password. The .p12 and that password are what I need.
    - The team can hold five of these in total, so this does not use anything up
      that we cannot replace.
+REQUEST_END
+  )
+
+  REQUEST_KEY=$(
+    cat << 'REQUEST_END'
 
 2. An App Store Connect API key for notarization.
    - At https://appstoreconnect.apple.com/access/integrations/api go to
@@ -282,15 +312,31 @@ cannot make them myself. It is about fifteen minutes in total.
      give it the Developer role.
    - Send me the downloaded .p8 file, plus the Key ID and the Issuer ID shown
      on that page. Apple only lets the .p8 be downloaded once.
+REQUEST_END
+  )
+
+  if [[ "$KEY_SELF" == "yes" ]]; then
+    REQUEST_OPENING="Hi Morgan, I need one thing from the MJC AB Apple Developer account to sign
+the SecureSend Mac app. Only the Account Holder can create it, which is why I
+cannot do this one myself. It is about ten minutes."
+    REQUEST_BODY="$REQUEST_CERT"
+  else
+    REQUEST_OPENING="Hi Morgan, I need two things from the MJC AB Apple Developer account to sign and
+notarize the SecureSend Mac app. It is about fifteen minutes in total."
+    REQUEST_BODY="$REQUEST_CERT$REQUEST_KEY"
+  fi
+
+  REQUEST="$REQUEST_OPENING
+
+$REQUEST_BODY
 
 Please send the .p12 password as a SecureSend link rather than in the same
 message as the file: https://securesend.dev. The link opens once and then it is
-gone. The files themselves can come any way that suits you.
+gone. The file itself can come any way that suits you.
 
 Thank you. This is a one-time favour; we move to our own membership when the
-product pays for it.
-REQUEST_END
-  )
+product pays for it."
+
   printf '%s\n' "$REQUEST"
   printf '\n'
   if command -v pbcopy > /dev/null 2>&1; then
@@ -300,16 +346,22 @@ REQUEST_END
     fi
   fi
   printf '\n'
-  say "Stop here until the files arrive. Re-run this wizard when they have."
-  if ! confirm "Do you have the .p12 and the .p8 in hand right now?"; then
-    say "Nothing has been changed. See you when they land."
+  if [[ "$KEY_SELF" == "yes" ]]; then
+    say "You can make the key yourself now, but the certificate comes first here,"
+    say "so there is nothing to do until it arrives."
+    WAITING_FOR="the .p12"
+  else
+    WAITING_FOR="the .p12 and the .p8"
+  fi
+  if ! confirm "Do you have $WAITING_FOR in hand right now?"; then
+    say "Nothing has been changed. See you when it lands."
     exit 0
   fi
 fi
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "The Developer ID certificate"
-if [[ "$SELF_SERVE" == "yes" ]]; then
+if [[ "$CERT_SELF" == "yes" ]]; then
   say "First a certificate signing request, which is how Apple learns your key."
   step "Open Keychain Access > Certificate Assistant > Request a Certificate"
   say "  From a Certificate Authority. Enter your email, leave CA Email blank,"
@@ -399,7 +451,7 @@ MACOS_CERTIFICATE="$(base64 < "$P12_PATH" | tr -d '\n')"
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
 stage "The notarization key"
-if [[ "$SELF_SERVE" == "yes" ]]; then
+if [[ "$KEY_SELF" == "yes" ]]; then
   say "An App Store Connect API key is what lets CI hand builds to Apple without"
   say "anybody's Apple ID password living in a repository."
   printf '\n'
