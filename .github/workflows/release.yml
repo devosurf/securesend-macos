@@ -104,11 +104,24 @@ jobs:
         run: |
           dmg="$RUNNER_TEMP/dist/SecureSend-$VERSION.dmg"
           sum=$(shasum -a 256 "$dmg" | cut -d " " -f 1)
-          printf '%s\n\n%s\n\n%s\n' \
+
+          # The same file twice, under two names. The versioned one is what you
+          # keep and check a hash against. The plain one exists so that
+          # releases/latest/download/SecureSend.dmg is a link that never has to
+          # be edited again: GitHub resolves it to whatever the newest release
+          # is, but only if the file is named the same every time. That link is
+          # what the download button on the website points at.
+          cp "$dmg" "$RUNNER_TEMP/dist/SecureSend.dmg"
+
+          printf '%s\n\n%s\n\n%s\n\n%s\n' \
             "SecureSend for macOS $VERSION. Signed and notarized, so it opens without a right-click. Requires macOS 14 or later." \
             "Drag it to Applications, then find it in the menu bar. What it does and what it never sends is in the [README](https://github.com/${GITHUB_REPOSITORY}#readme)." \
             "\`SecureSend-$VERSION.dmg\` sha256 \`$sum\`" \
+            "\`SecureSend.dmg\` is the same file under a name that does not move, for anything linking to the newest release." \
             > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" "$dmg" \
+
+          gh release create "$GITHUB_REF_NAME" \
+            "$dmg" \
+            "$RUNNER_TEMP/dist/SecureSend.dmg" \
             --title "SecureSend $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md"

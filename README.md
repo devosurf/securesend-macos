@@ -72,6 +72,19 @@ web app's `packages/crypto`. Every constant is named after its counterpart there
 so drift in either shows up as a failed round trip. `vector seal <note>` prints
 what this app would send, for checking that by hand.
 
+## Getting it
+
+Every release carries the same dmg under two names. Link to this one and it
+always resolves to the newest release, so nothing has to be edited when a
+version ships:
+
+```
+https://github.com/devosurf/securesend-macos/releases/latest/download/SecureSend.dmg
+```
+
+The versioned `SecureSend-X.Y.Z.dmg` beside it is the one to keep if you want to
+check a download against the sha256 in the release notes.
+
 ## Releasing it
 
 One number lives in three places: the git tag, `CFBundleShortVersionString` and
