@@ -155,10 +155,13 @@ check a download against the sha256 in the release notes.
 ## Releasing it
 
 One number lives in three places: the git tag, `CFBundleShortVersionString` and
-`CFBundleVersion` in the Info.plist, and the name on the release page. Check for
-updates compares the number in your copy against the number on `releases/latest`,
-so if those drift apart an installed app is told the wrong thing. One script sets
-all of them and the release refuses to build when they disagree.
+`CFBundleVersion` in the Info.plist, and the name on the release page. One script
+sets all of them and the release refuses to build when they disagree.
+
+Keeping them in step is what a Check for updates item would need, since it can
+only work by comparing the number in your copy against the number on
+`releases/latest`. The app does not have that item yet: for now you find out
+about a new version by looking at the releases page.
 
 ```sh
 ./scripts/version.sh 0.2.0
