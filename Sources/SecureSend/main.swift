@@ -16,7 +16,8 @@ import SecureSendKit
 //   1. right-click > Services > "Replace with SecureSend link"
 //   2. right-click > Services > "Copy as SecureSend link", for hosts that will
 //      not take a replacement
-//   3. the menu bar item > Generate from clipboard, when there is no live selection
+//   3. control-shift-C, or the menu bar item > Generate from clipboard, when
+//      there is no live selection
 //
 // Receiving, which is the same trip backwards:
 //   4. control-shift-V, or the menu bar item > Open link from clipboard
@@ -40,7 +41,10 @@ final class StatusUI {
   private var statusItem: NSStatusItem?
   private var restore: Task<Void, Never>?
 
-  func install() {
+  /// `held` is what the window server actually gave us, so a shortcut that failed
+  /// to register is not advertised next to a menu item that would then be the only
+  /// way to reach it.
+  func install(held: Set<Shortcut>) {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     item.button?.image = markImage(edge: 17)
     item.button?.toolTip = "SecureSend"
@@ -52,16 +56,16 @@ final class StatusUI {
       keyEquivalent: ""
     )
     generate.target = AppActions.shared
+    teach(generate, .generate, held: held)
 
-    // The other direction. It carries the hotkey's own combination so the menu
-    // teaches the shortcut rather than the two drifting apart.
+    // The other direction, the same trip backwards.
     let consume = menu.addItem(
       withTitle: "Open link from clipboard",
       action: #selector(AppActions.consumeFromClipboard),
-      keyEquivalent: GlobalHotkey.menuKeyEquivalent.key
+      keyEquivalent: ""
     )
-    consume.keyEquivalentModifierMask = GlobalHotkey.menuKeyEquivalent.modifiers
     consume.target = AppActions.shared
+    teach(consume, .consume, held: held)
 
     menu.addItem(.separator())
     menu.addItem(
@@ -79,6 +83,15 @@ final class StatusUI {
     )
     item.menu = menu
     statusItem = item
+  }
+
+  /// Puts the shortcut beside the item that does the same thing, so the menu is
+  /// where somebody learns it. Silent when the combination was not registered:
+  /// printing a key equivalent that fires nothing is worse than printing none.
+  private func teach(_ item: NSMenuItem, _ shortcut: Shortcut, held: Set<Shortcut>) {
+    guard held.contains(shortcut) else { return }
+    item.keyEquivalent = shortcut.menuKeyEquivalent.key
+    item.keyEquivalentModifierMask = shortcut.menuKeyEquivalent.modifiers
   }
 
   /// Momentary confirmation, so nothing needs a notification permission.
@@ -209,16 +222,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private let hotkey = GlobalHotkey()
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    StatusUI.shared.install()
+    // Hotkeys first, because the menu prints only the ones that were granted.
+    // A combination somebody else already owns is not worth a modal on login:
+    // every other way in still works, and the menu item does the same job.
+    let held = hotkey.install { shortcut in
+      switch shortcut {
+      case .generate: AppActions.shared.generateFromClipboard()
+      case .consume: Consume.fromClipboard()
+      }
+    }
+    StatusUI.shared.install(held: held)
 
-    // A combination somebody else already owns is not worth a modal on login.
-    // Every other way in still works, and the menu item says the same thing.
-    let registered = hotkey.install { Consume.fromClipboard() }
-
+    let shortcuts = held.isEmpty ? "none" : held.map(\.name).sorted().joined(separator: " ")
     log(
       "boot",
       "pid=\(ProcessInfo.processInfo.processIdentifier)",
-      "hotkey=\(registered ? "control-shift-V" : "unavailable")"
+      "hotkeys=\(shortcuts)"
     )
   }
 }

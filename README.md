@@ -29,14 +29,28 @@ it like one.**
 - **Copy as SecureSend link.** The same thing, but the link lands on your
   clipboard and the selection is left alone. This is the fallback for anything
   that will not take a replacement, and for text you cannot edit.
-- **Generate from clipboard.** From the menu bar item, for when there is no live
-  selection.
+- **Generate from clipboard.** Copy the secret, press control-shift-C, and the
+  link replaces it on your clipboard. Also in the menu bar item, for when there
+  is no live selection.
 - **Open link from clipboard.** The reverse. Copy a SecureSend link somebody sent
   you, press control-shift-V, and the app opens it: the note lands on your
   clipboard, files land in your Downloads folder.
 
 Links expire in 24 hours, the same default the web app starts from. A right-click
 has no screen to choose an expiry on, so the app picks the one you would have.
+
+## Shortcuts
+
+Two, both fixed for now: control-shift-C makes a link out of your clipboard, and
+control-shift-V opens one that is on it. There is no settings window yet, so
+neither can be changed inside the app. If another app already owns one of these
+combinations, macOS gives it to whichever asked first and says nothing to either,
+so the symptom is a shortcut that quietly does nothing; the menu bar item does
+the same job in the meantime.
+
+The two Services ship with no shortcut at all, because every obvious combination
+is somebody else's. You can give them one yourself in System Settings > Keyboard
+> Keyboard Shortcuts > Services.
 
 ## Opening a link
 
