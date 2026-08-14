@@ -273,71 +273,73 @@ case "$ACCESS" in
   3) CERT_SELF="no"; KEY_SELF="no" ;;
 esac
 
+printf '\n'
 if [[ "$CERT_SELF" == "yes" ]]; then
-  note "you will create both artifacts in the next stages"
+  note "you can make both artifacts yourself in the stages that follow"
+elif [[ "$KEY_SELF" == "yes" ]]; then
+  note "the key is yours to make; the certificate needs three minutes of his time"
 else
+  note "both need his account; this wizard writes what to send him"
+fi
+pause "Press Enter to continue."
+
+# ── 3 ─────────────────────────────────────────────────────────────────────
+stage "The Developer ID certificate"
+say "This starts on your machine either way. A certificate signing request holds"
+say "your ${BOLD}public${RESET} key and asks Apple to vouch for it. The private half stays in"
+say "your keychain, and it is the half that actually signs the app."
+printf '\n'
+step "Open Keychain Access, then Certificate Assistant > Request a Certificate"
+say "  From a Certificate Authority."
+step "Put your email in, leave CA Email Address blank, choose 'Saved to disk'."
+step "Save the .certSigningRequest file somewhere you can find it."
+printf '\n'
+note "drag the file into this terminal to paste its path"
+ask CSR_PATH "Path to the .certSigningRequest:"
+CSR_PATH="${CSR_PATH/#\~/$HOME}"
+CSR_PATH="${CSR_PATH%\'}"
+CSR_PATH="${CSR_PATH#\'}"
+CSR_PATH="${CSR_PATH//\\ / }"
+if [[ ! -f "$CSR_PATH" ]]; then
+  warn "no file at: $CSR_PATH"
+  exit 1
+fi
+printf '  %s✓%s the private key for this now lives in your keychain and never moves\n' "$GREEN" "$RESET"
+printf '\n'
+
+if [[ "$CERT_SELF" == "yes" ]]; then
+  open_url "https://developer.apple.com/account/resources/certificates/add"
+  step "Under Software choose Developer ID, then Developer ID Application, Continue."
+  step "Upload the .certSigningRequest, Continue, then Download the .cer."
+  pause "Done? Press Enter."
+else
+  say "Now Morgan turns that into a certificate. He never sees anything secret:"
+  say "a request carries a public key, and what comes back is public too. So send"
+  say "the file any way you like."
   printf '\n'
-  if [[ "$KEY_SELF" == "yes" ]]; then
-    say "Then Morgan owes you one thing, the certificate. Here is the message."
-  else
-    say "Then Morgan owes you both. Here is the message, asking for them together"
-    say "so he only has to sit down for this once."
-  fi
-  printf '\n'
+  REQUEST="Hi Morgan, I need three minutes of your Apple Developer account to sign the
+SecureSend Mac app. Only the Account Holder can issue this kind of certificate,
+which is the whole reason I cannot do it myself.
 
-  REQUEST_CERT=$(
-    cat << 'REQUEST_END'
-1. A Developer ID Application certificate.
-   - In Keychain Access: Certificate Assistant > Request a Certificate From a
-     Certificate Authority. Enter your email, leave CA Email blank, choose
-     "Saved to disk". That produces a .certSigningRequest file.
-   - At https://developer.apple.com/account/resources/certificates/add pick
-     Software > Developer ID > Developer ID Application, upload that file,
-     continue, and download the .cer.
-   - Double-click the .cer to install it, then in Keychain Access find it under
-     login > My Certificates, right-click > Export, and save it as a .p12 with
-     a password. The .p12 and that password are what I need.
-   - The team can hold five of these in total, so this does not use anything up
-     that we cannot replace.
-REQUEST_END
-  )
+Attached is a certificate signing request I generated here. Nothing in it is
+secret: it carries my public key, and the certificate that comes back is public
+as well. The private key stays on my machine and never goes anywhere, which is
+why there is no password for you to send me and nothing here you have to guard.
 
-  REQUEST_KEY=$(
-    cat << 'REQUEST_END'
+  1. Open https://developer.apple.com/account/resources/certificates/add
+  2. Under Software pick Developer ID, then Developer ID Application, Continue.
+  3. Upload the file I attached, Continue, then Download.
+  4. Send me back the .cer file it gives you. That is all of it.
 
-2. An App Store Connect API key for notarization.
-   - At https://appstoreconnect.apple.com/access/integrations/api go to
-     Users and Access > Integrations > App Store Connect API > Team Keys, then
-     Generate API Key. Name it something like "SecureSend notarization" and
-     give it the Developer role.
-   - Send me the downloaded .p8 file, plus the Key ID and the Issuer ID shown
-     on that page. Apple only lets the .p8 be downloaded once.
-REQUEST_END
-  )
+The team can hold five of these, so this does not use up anything we cannot
+replace. It is a one-time favour; we move to our own membership when the product
+pays for it.
 
-  if [[ "$KEY_SELF" == "yes" ]]; then
-    REQUEST_OPENING="Hi Morgan, I need one thing from the MJC AB Apple Developer account to sign
-the SecureSend Mac app. Only the Account Holder can create it, which is why I
-cannot do this one myself. It is about ten minutes."
-    REQUEST_BODY="$REQUEST_CERT"
-  else
-    REQUEST_OPENING="Hi Morgan, I need two things from the MJC AB Apple Developer account to sign and
-notarize the SecureSend Mac app. It is about fifteen minutes in total."
-    REQUEST_BODY="$REQUEST_CERT$REQUEST_KEY"
-  fi
-
-  REQUEST="$REQUEST_OPENING
-
-$REQUEST_BODY
-
-Please send the .p12 password as a SecureSend link rather than in the same
-message as the file: https://securesend.dev. The link opens once and then it is
-gone. The file itself can come any way that suits you.
-
-Thank you. This is a one-time favour; we move to our own membership when the
-product pays for it."
-
+Thank you."
   printf '%s\n' "$REQUEST"
+  printf '\n'
+  say "The file to attach:"
+  printf '  %s%s%s\n' "$BOLD" "$CSR_PATH" "$RESET"
   printf '\n'
   if command -v pbcopy > /dev/null 2>&1; then
     if confirm "Copy that message to the clipboard?"; then
@@ -346,40 +348,22 @@ product pays for it."
     fi
   fi
   printf '\n'
-  if [[ "$KEY_SELF" == "yes" ]]; then
-    say "You can make the key yourself now, but the certificate comes first here,"
-    say "so there is nothing to do until it arrives."
-    WAITING_FOR="the .p12"
-  else
-    WAITING_FOR="the .p12 and the .p8"
-  fi
-  if ! confirm "Do you have $WAITING_FOR in hand right now?"; then
-    say "Nothing has been changed. See you when it lands."
+  if ! confirm "Has the .cer come back yet?"; then
+    say "Nothing has been changed. Re-run this when it lands, and keep the request"
+    say "file until then, because a new one would need a new certificate."
     exit 0
   fi
 fi
 
-# ── 3 ─────────────────────────────────────────────────────────────────────
-stage "The Developer ID certificate"
-if [[ "$CERT_SELF" == "yes" ]]; then
-  say "First a certificate signing request, which is how Apple learns your key."
-  step "Open Keychain Access > Certificate Assistant > Request a Certificate"
-  say "  From a Certificate Authority. Enter your email, leave CA Email blank,"
-  say "  choose 'Saved to disk', and save the .certSigningRequest file."
-  pause "Done? Press Enter."
-  printf '\n'
-  open_url "https://developer.apple.com/account/resources/certificates/add"
-  step "Under Software choose Developer ID, then Developer ID Application, Continue."
-  step "Upload the .certSigningRequest, Continue, then Download the .cer."
-  step "Double-click the .cer to install it into your keychain."
-  pause "Done? Press Enter."
-  printf '\n'
-  step "In Keychain Access, under login > My Certificates, find the row starting"
-  say "  'Developer ID Application:'. Right-click it, Export, save as a .p12,"
-  say "  and give it a password you can paste in a moment."
-  pause "Done? Press Enter."
-  printf '\n'
-fi
+printf '\n'
+step "Double-click the .cer to install it. Keychain Access pairs it with the"
+say "  private key it was made for, which is the one on this machine."
+step "In Keychain Access, under login > My Certificates, find the row starting"
+say "  'Developer ID Application:'. Right-click it, Export, save as a .p12,"
+say "  and give it a password you can paste in a moment."
+note "the password is yours, invented here. Nobody else ever needs it."
+pause "Done? Press Enter."
+printf '\n'
 
 say "Now point this wizard at that .p12 file."
 note "drag the file into this terminal to paste its path"
@@ -461,6 +445,42 @@ if [[ "$KEY_SELF" == "yes" ]]; then
   step "Download the .p8. Apple allows that download exactly once."
   step "Note the Key ID on the row, and the Issuer ID shown above the list."
   pause "Done? Press Enter."
+  printf '\n'
+else
+  say "This one is a real private key, unlike the certificate request, so it does"
+  say "not travel in a mail thread. Ask for it as a SecureSend link."
+  printf '\n'
+  REQUEST="One more thing from the same account, and this one takes about five minutes.
+
+  1. Open https://appstoreconnect.apple.com/access/integrations/api
+  2. Users and Access > Integrations > App Store Connect API, Team Keys tab.
+  3. Generate API Key, name it 'SecureSend notarization', role Developer.
+  4. Download the .p8. Apple allows that download exactly once, so do not
+     close the page until it is saved.
+  5. Note the Key ID on the row and the Issuer ID above the list.
+
+The .p8 is an actual private key, so please send it as a one-time link rather
+than as an attachment: go to https://securesend.dev, drop the file in, and send
+me the link it gives you. It opens once and then it is gone. The Key ID and the
+Issuer ID are not secret and can come in the message.
+
+Thank you."
+  printf '%s\n' "$REQUEST"
+  printf '\n'
+  if command -v pbcopy > /dev/null 2>&1; then
+    if confirm "Copy that message to the clipboard?"; then
+      printf '%s' "$REQUEST" | pbcopy
+      note "copied"
+    fi
+  fi
+  printf '\n'
+  if ! confirm "Has the key come back yet?"; then
+    say "Nothing has been changed. The certificate work above is not lost: it is"
+    say "in your keychain and the .p12 is on disk. Re-run this when the key lands."
+    exit 0
+  fi
+  printf '\n'
+  note "if it arrived as a SecureSend link: securesend reveal <link> > notary.p8"
   printf '\n'
 fi
 

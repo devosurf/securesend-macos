@@ -116,6 +116,12 @@ Holder, while the notarization key needs no more than an Admin. The wizard asks
 which of those you are, and for whatever you cannot make yourself it writes the
 message to send the person who can.
 
+When somebody else holds the account, the signing request is still made here.
+They upload it and send back the certificate, which means the private key that
+signs the app never leaves this machine, and there is no password for anyone to
+transmit. That is a shorter favour to ask than an export, and a safer one to
+grant.
+
 | Secret                        | What it is                                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | `MACOS_CERTIFICATE`           | your Developer ID Application certificate and key, exported as a `.p12`, then base64 encoded |
