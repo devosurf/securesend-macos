@@ -211,13 +211,16 @@ notarizes it with Apple, staples the ticket to both the app and the dmg, and
 attaches `SecureSend-0.2.0.dmg` to the GitHub release with its sha256 in the
 notes. Nothing between the tag and the download is done by hand.
 
-The last step of that workflow bumps the Homebrew cask in
-[devosurf/homebrew-tap](https://github.com/devosurf/homebrew-tap) to the version
-and sha256 it just published, so `brew upgrade` has the new one the moment the
-release page does. It needs a `TAP_TOKEN` secret here: a fine-grained token with
-contents write on that one repository, because the workflow's own `GITHUB_TOKEN`
-cannot write outside this one. Without it the step says so and the release still
-ships, which is what a fork with no tap of ours wants.
+The Homebrew cask follows on its own. Nothing here pushes to
+[devosurf/homebrew-tap](https://github.com/devosurf/homebrew-tap), because a
+workflow's token stops at its own repository and the alternatives are all a
+secret somebody has to make and later replace. The tap reads this release page
+on a daily schedule instead, downloads the dmg and hashes it there. To skip the
+wait after tagging:
+
+```sh
+gh workflow run bump.yml --repo devosurf/homebrew-tap
+```
 
 `./scripts/package.sh` is the same build, runnable here. With
 `SIGN_IDENTITY` alone it produces a signed dmg that only opens on this machine,

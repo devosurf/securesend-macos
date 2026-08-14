@@ -126,43 +126,10 @@ jobs:
             --title "SecureSend $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md"
 
-      # After the release exists and never before it: a cask that points at a
-      # download nobody published is a broken install for everyone who has the
-      # tap. The tap is devosurf/homebrew-tap, and TAP_TOKEN is a fine-grained
-      # token with contents write on that one repository. GITHUB_TOKEN cannot do
-      # this: its write access stops at this repository.
-      - name: Bump the Homebrew cask
-        env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          # A fork has no tap of ours to push to, and the release it just made is
-          # good. So this is skipped rather than failed.
-          if [ -z "$TAP_TOKEN" ]; then
-            echo "TAP_TOKEN is not set, so no cask was bumped. That is expected in a fork."
-            exit 0
-          fi
-
-          sum=$(shasum -a 256 "$RUNNER_TEMP/dist/SecureSend-$VERSION.dmg" | cut -d " " -f 1)
-          cask="$RUNNER_TEMP/tap/Casks/securesend.rb"
-
-          git clone --depth 1 \
-            "https://x-access-token:$TAP_TOKEN@github.com/devosurf/homebrew-tap.git" \
-            "$RUNNER_TEMP/tap"
-
-          sed -i '' -E "s|^  version \".*\"$|  version \"$VERSION\"|" "$cask"
-          sed -i '' -E "s|^  sha256 \".*\"$|  sha256 \"$sum\"|" "$cask"
-
-          # sed says nothing when it matches nothing, and a cask silently left on
-          # the old version is an upgrade nobody gets and nobody is told about.
-          if ! grep -q "^  version \"$VERSION\"$" "$cask" || ! grep -q "^  sha256 \"$sum\"$" "$cask"; then
-            echo "The cask was not rewritten. Its version and sha256 lines are not the shape this expects:" >&2
-            head -n 12 "$cask" >&2
-            exit 1
-          fi
-
-          cd "$RUNNER_TEMP/tap"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "securesend $VERSION"
-          git push
+      # Nothing here pushes to the Homebrew tap, and that is deliberate. A
+      # workflow's GITHUB_TOKEN stops at its own repository, deploy keys are off
+      # for this organisation, and a personal access token is a secret somebody
+      # has to make and later replace. So devosurf/homebrew-tap follows this
+      # release page on its own schedule instead, and hashes the dmg itself.
+      # `gh workflow run bump.yml --repo devosurf/homebrew-tap` when you do not
+      # want to wait for it.
