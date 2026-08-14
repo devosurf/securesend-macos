@@ -20,17 +20,28 @@ enum Clipboard {
   /// The url on the clipboard, or nil. Never reads anything else that is on it.
   static func url() async -> String? {
     if #available(macOS 15.4, *) {
-      guard
-        let found = try? await NSPasteboard.general.detectedValues(for: [\.probableWebURL])
-      else {
-        return nil
-      }
-
-      let url = found.probableWebURL
-      return url.isEmpty ? nil : url
+      return await detected()
     }
 
     return NSPasteboard.general.string(forType: .string)
+  }
+
+  /// Nonisolated so that `DetectedValues` never crosses an isolation boundary.
+  ///
+  /// It is not `Sendable`, and awaiting it from the main actor asks the compiler
+  /// to send it there, which older toolchains refuse outright. Unwrapping it here
+  /// and handing back a `String` keeps the answer to something that is always safe
+  /// to send, and costs nothing: the string is all the caller wanted.
+  @available(macOS 15.4, *)
+  private nonisolated static func detected() async -> String? {
+    guard
+      let found = try? await NSPasteboard.general.detectedValues(for: [\.probableWebURL])
+    else {
+      return nil
+    }
+
+    let url = found.probableWebURL
+    return url.isEmpty ? nil : url
   }
 
   /// Puts text on the clipboard, replacing what was there.
