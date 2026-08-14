@@ -133,6 +133,20 @@ public enum SecureSendAPI {
   private struct Attempt {
     let body: Data
     let link: String
+
+    /// The answer, read the same way whichever call made it. A method rather
+    /// than a free function because the link it hands back is this attempt's own,
+    /// chosen before the request went out.
+    func read(_ http: HTTPURLResponse, data: Data?) throws -> String {
+      if http.statusCode == 409 {
+        throw Failure.idTaken
+      }
+      guard http.statusCode == 201 else {
+        throw Failure.refused(http.statusCode, data.map { SecureSendAPI.detail($0) } ?? "")
+      }
+
+      return link
+    }
   }
 
   private static func prepare(
@@ -171,22 +185,6 @@ public enum SecureSendAPI {
     return request
   }
 
-  /// The answer, read the same way whichever call made it.
-  private static func link(
-    from http: HTTPURLResponse,
-    data: Data?,
-    attempt: Attempt
-  ) throws -> String {
-    if http.statusCode == 409 {
-      throw Failure.idTaken
-    }
-    guard http.statusCode == 201 else {
-      throw Failure.refused(http.statusCode, data.map { detail($0) } ?? "")
-    }
-
-    return attempt.link
-  }
-
   private static func attemptCreate(
     note: String,
     expiry: Expiry,
@@ -213,7 +211,7 @@ public enum SecureSendAPI {
       throw Failure.offline("no response")
     }
 
-    return try link(from: http, data: box.data, attempt: attempt)
+    return try attempt.read(http, data: box.data)
   }
 
   private static func attemptCreate(
@@ -224,6 +222,6 @@ public enum SecureSendAPI {
     let attempt = try prepare(note: nil, files: files, expiry: expiry)
     let (data, http) = try await send(post(attempt, timeout: timeout))
 
-    return try link(from: http, data: data, attempt: attempt)
+    return try attempt.read(http, data: data)
   }
 }

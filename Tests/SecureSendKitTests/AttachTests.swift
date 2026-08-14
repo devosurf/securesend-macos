@@ -171,12 +171,3 @@ private func failure(from body: () throws -> [SecureSendCrypto.FileToSeal]) -> A
     return nil
   }
 }
-
-private func inTemporaryFolder(_ body: (URL) throws -> Void) throws {
-  let folder = URL(fileURLWithPath: NSTemporaryDirectory())
-    .appendingPathComponent("securesend-tests-\(UUID().uuidString)")
-  try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-  defer { try? FileManager.default.removeItem(at: folder) }
-
-  try body(folder)
-}

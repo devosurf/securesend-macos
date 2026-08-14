@@ -14,7 +14,7 @@ The one thing macOS may ask you is its standard "access files in your Downloads
 folder" consent, and only if somebody sends you a secret with files in it, at the
 moment those files are saved. Sending a file does not ask, even out of a
 protected folder: a file you picked in Finder is handed to the app by the system,
-which is consent you already gave by picking it. Measured on 26.5, sending a file
+which is consent you already gave by picking it. Measured on 26.5.1, sending a file
 off the Desktop, with no entry for this app in the privacy database before or
 after. Nothing else here touches a protected folder.
 

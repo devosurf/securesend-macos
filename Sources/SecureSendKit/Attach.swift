@@ -15,6 +15,12 @@ import UniformTypeIdentifiers
 // image is told before anything is read, encrypted or uploaded rather than after,
 // and a self-hosted instance set lower will still refuse what this lets through,
 // in its own words.
+//
+// The instance's third cap, `MAX_ENVELOPE_BYTES`, is deliberately not mirrored.
+// It bounds the json part, which on this path is a file list and nothing else: a
+// filesystem caps one name at 255 bytes, so ten of them cannot approach 256 KiB.
+// A cap that cannot be reached is a check somebody would later have to reason
+// about for no reason.
 
 public enum Attach {
   /// How many files one envelope carries.
@@ -31,9 +37,9 @@ public enum Attach {
   static let scaffoldingBytes = 256
 
   public enum Failure: LocalizedError, Sendable, Equatable {
-    case nothingToSend
     /// A folder, a package, or something the filesystem will not describe.
     case notAFile
+    case nothingToSend
     case tooBig(bytes: Int)
     case tooMany(count: Int)
     /// The system's own reason, which is the only one worth printing here. It
@@ -42,10 +48,10 @@ public enum Attach {
 
     public var errorDescription: String? {
       switch self {
-      case .nothingToSend:
-        return "Select a file first."
       case .notAFile:
         return "SecureSend sends files, not folders."
+      case .nothingToSend:
+        return "Select a file first."
       case .tooBig(let bytes):
         return """
           SecureSend takes \(size(maxTotalBytes)) in one link, and that is \(size(bytes)).
@@ -57,11 +63,14 @@ public enum Attach {
       }
     }
 
-    /// The same refusal with nothing in it that came from a filename, for the log.
+    /// The same refusal with nothing in it that came from a filename, for the
+    /// log. Separate from the sentence above rather than derived from it: one is
+    /// written for somebody reading a panel and the other has to be safe to
+    /// write to a file, and those two jobs pull in opposite directions.
     public var label: String {
       switch self {
-      case .nothingToSend: return "nothing selected"
       case .notAFile: return "not a file"
+      case .nothingToSend: return "nothing selected"
       case .tooBig(let bytes): return "too big at \(bytes)b"
       case .tooMany(let count): return "too many at \(count)"
       case .unreadable: return "unreadable"
