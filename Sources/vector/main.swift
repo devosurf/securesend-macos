@@ -7,6 +7,7 @@ import SecureSendKit
 //   vector create <note> [1h]   posts to securesend.dev and prints the link
 //   vector status <link>        asks what is at a link, destroys nothing
 //   vector consume <link>       the receiving side, end to end. DESTROYS the link
+//   vector updates [0.2.0]      what the releases api names, and how it ranks
 //
 // `consume` is the app's flow without the app: the same status call, the same
 // reveal, the same open. It prints what came out, which is why it is a
@@ -82,6 +83,18 @@ case "consume":
 
   // The same second call the app never makes, to prove the link really is spent.
   print("after:     \(try await SecureSendAPI.status(id: id).state)")
+
+case "updates":
+  // Against the real releases API, because the shape of that answer is the only
+  // part of Check for updates that tests cannot pin down.
+  let release = try await SecureSendUpdates.latest()
+  print("latest:    \(release.version)")
+  print("page:      \(release.page)")
+  if args.count > 2 {
+    let mine = SecureSendVersion(args[2])
+    print("mine:      \(mine.map(String.init(describing:)) ?? "unreadable")")
+    print("newer:     \(mine.map { release.version > $0 } ?? false)")
+  }
 
 default:
   FileHandle.standardError.write(Data("unknown mode: \(mode)\n".utf8))

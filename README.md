@@ -105,7 +105,7 @@ Services caching. `./scripts/build.sh` flushes it, and a logout always fixes it.
 | Path                     | What it is                                              |
 | ------------------------ | ------------------------------------------------------- |
 | `Sources/SecureSend`     | the menu bar app, the Service handlers, the consume flow |
-| `Sources/SecureSendKit`  | the crypto envelope, the API calls, the mark             |
+| `Sources/SecureSendKit`  | the crypto envelope, the API calls, the update check, the mark |
 | `Sources/vector`         | seals, creates and consumes from the terminal            |
 | `Sources/preview`        | renders the menu bar mark at candidate sizes             |
 | `Sources/icon`           | draws the app icon, via `scripts/icon.sh`                |
@@ -137,6 +137,7 @@ vector seal "a note"      # the sealed envelope as json, no network
 vector create "a note"    # posts it and prints the link
 vector status <link>      # what is at a link. Destroys nothing
 vector consume <link>     # the receiving side, end to end. Destroys the link
+vector updates 0.1.0      # what the releases api names, and how it ranks
 ```
 
 ## Getting it
@@ -152,16 +153,28 @@ https://github.com/devosurf/securesend-macos/releases/latest/download/SecureSend
 The versioned `SecureSend-X.Y.Z.dmg` beside it is the one to keep if you want to
 check a download against the sha256 in the release notes.
 
+## Staying current
+
+**Check for updates** in the menu asks GitHub for the latest release and compares
+it against the version this copy was built with. If there is a newer one it
+offers the release page, where the notes and the checksum are. Updating is then
+the same drag it was the first time, after quitting the running copy.
+
+It asks only when you click it. There is no check on launch and no timer, because
+a tool that talks to a server on its own schedule is a different promise from the
+one the rest of this app makes, and GitHub sees an address every time it is asked.
+Nothing downloads or replaces itself either: this app has no updater, it has a
+question it can ask.
+
 ## Releasing it
 
 One number lives in three places: the git tag, `CFBundleShortVersionString` and
 `CFBundleVersion` in the Info.plist, and the name on the release page. One script
 sets all of them and the release refuses to build when they disagree.
 
-Keeping them in step is what a Check for updates item would need, since it can
-only work by comparing the number in your copy against the number on
-`releases/latest`. The app does not have that item yet: for now you find out
-about a new version by looking at the releases page.
+Keeping them in step is what Check for updates depends on, since it compares the
+number in your copy against the tag on `releases/latest`. If they drift apart an
+installed app is told the wrong thing.
 
 ```sh
 ./scripts/version.sh 0.2.0
