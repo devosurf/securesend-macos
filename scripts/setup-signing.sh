@@ -432,9 +432,46 @@ if ! /usr/bin/openssl x509 -inform DER -in "$CER_PATH" -out "$SIGNING_DIR/certif
   fi
 fi
 
+# Apple issues the certificate but not the authority above it, and a bundle
+# holding only the leaf is not a valid identity to macOS: it cannot see the path
+# from your certificate up to the Apple root it already trusts. So fetch the
+# intermediate that signed this one and pack it in alongside. Which intermediate
+# depends on the Sub-CA chosen when the certificate was created, so read it off
+# the certificate rather than guessing.
+LEAF_ISSUER="$(/usr/bin/openssl x509 -in "$SIGNING_DIR/certificate.pem" -noout -issuer | sed 's/^issuer= *//')"
+INTERMEDIATE_PEM="$SIGNING_DIR/intermediate.pem"
+INTERMEDIATE_FOUND="no"
+
+for url in \
+  "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" \
+  "https://www.apple.com/certificateauthority/DeveloperIDCA.cer"; do
+  if ! curl -fsS -o "$SIGNING_DIR/intermediate.cer" "$url" > /dev/null 2>&1; then
+    continue
+  fi
+  if ! /usr/bin/openssl x509 -inform DER -in "$SIGNING_DIR/intermediate.cer" -out "$INTERMEDIATE_PEM" > /dev/null 2>&1; then
+    continue
+  fi
+  subject="$(/usr/bin/openssl x509 -in "$INTERMEDIATE_PEM" -noout -subject | sed 's/^subject= *//')"
+  if [[ "$subject" == "$LEAF_ISSUER" ]]; then
+    INTERMEDIATE_FOUND="yes"
+    break
+  fi
+done
+
+if [[ "$INTERMEDIATE_FOUND" == "no" ]]; then
+  warn "could not fetch the authority that issued this certificate."
+  say "It says it was issued by:"
+  say "  $LEAF_ISSUER"
+  say "Neither of Apple's published Developer ID intermediates matches that, so"
+  say "either you are offline or the certificate is not a Developer ID one."
+  exit 1
+fi
+printf '  %s✓%s chain: %s\n' "$GREEN" "$RESET" "$LEAF_ISSUER"
+
 if ! /usr/bin/openssl pkcs12 -export \
   -inkey "$KEY_PATH" \
   -in "$SIGNING_DIR/certificate.pem" \
+  -certfile "$INTERMEDIATE_PEM" \
   -out "$P12_PATH" \
   -passout pass:"$P12_PASSWORD" > /dev/null 2>&1; then
   warn "the certificate and the key would not pair up."
@@ -460,7 +497,23 @@ CHECK_DIR="$(mktemp -d)"
 CHECK_KEYCHAIN="$CHECK_DIR/check.keychain-db"
 CHECK_PASSWORD="$(openssl rand -base64 24)"
 
+# A keychain that is not in the search list is not consulted when macOS decides
+# whether an identity is valid: the certificate is found, and then reported as
+# not valid, which reads exactly like a bad certificate and is not one. The
+# runner puts its keychain in the list for the same reason, so this check has to
+# as well or it would fail things the release would accept. Read the existing
+# list one entry per line, so a home directory with a space in it survives.
+SEARCH_LIST=()
+while IFS= read -r line; do
+  line="${line#*\"}"
+  line="${line%\"*}"
+  [[ -n "$line" ]] && SEARCH_LIST+=("$line")
+done < <(security list-keychains -d user)
+
 cleanup_check() {
+  if ((${#SEARCH_LIST[@]})); then
+    security list-keychains -d user -s "${SEARCH_LIST[@]}" > /dev/null 2>&1 || true
+  fi
   security delete-keychain "$CHECK_KEYCHAIN" > /dev/null 2>&1 || true
   rm -rf "$CHECK_DIR"
 }
@@ -468,6 +521,7 @@ trap cleanup_check EXIT
 
 security create-keychain -p "$CHECK_PASSWORD" "$CHECK_KEYCHAIN" > /dev/null
 security unlock-keychain -p "$CHECK_PASSWORD" "$CHECK_KEYCHAIN" > /dev/null
+security list-keychains -d user -s "$CHECK_KEYCHAIN" "${SEARCH_LIST[@]}" > /dev/null
 
 if ! security import "$P12_PATH" -k "$CHECK_KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign > /dev/null 2>&1; then
   warn "macOS refused to import that file. Usually the password is wrong, or the"

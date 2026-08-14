@@ -122,6 +122,12 @@ signs the app never leaves this machine, and there is no password for anyone to
 transmit. That is a shorter favour to ask than an export, and a safer one to
 grant.
 
+Apple issues your certificate but not the authority above it, so the wizard
+fetches the matching Developer ID intermediate and packs it in beside the
+certificate. Without it macOS finds the identity and then calls it invalid,
+which reads like a bad certificate and is not one. That is also why building the
+`.p12` needs a network connection for a moment.
+
 The request is made with `openssl` rather than through Keychain Access, and the
 certificate that comes back is paired with its key the same way. Certificate
 Assistant fails on some machines with "The specified item could not be found in
