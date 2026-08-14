@@ -25,11 +25,40 @@ public enum SecureSendCrypto {
   private static let plainTokenBytes = keyOffset + fragmentKeyBytes
   private static let passwordTokenBytes = plainTokenBytes + fragmentSaltBytes
 
+  /// A file on its way in. Its size is taken from the bytes it carries and never
+  /// declared separately, so the number the envelope announces and the number the
+  /// recipient counts cannot disagree.
+  public struct FileToSeal: Sendable, Equatable {
+    public let bytes: Data
+    public let name: String
+    /// The MIME type, empty when the system has no name for it. The web client
+    /// sends `File.type`, which is empty in exactly the same case.
+    public let type: String
+
+    public init(bytes: Data, name: String, type: String) {
+      self.bytes = bytes
+      self.name = name
+      self.type = type
+    }
+  }
+
   public struct Sealed {
+    public let attachments: [AttachmentCiphertext]
     public let ciphertext: String
     public let fragmentToken: String
     public let id: String
     public let iv: String
+  }
+
+  public enum SealFailure: LocalizedError, Sendable, Equatable {
+    case nothingToSeal
+
+    public var errorDescription: String? {
+      switch self {
+      case .nothingToSeal:
+        return "There is nothing in that secret to send."
+      }
+    }
   }
 
   // MARK: - base64url
@@ -199,33 +228,66 @@ public enum SecureSendCrypto {
 
   // MARK: - Sealing
 
-  /// Seals a note-only envelope the web client can open.
-  public static func seal(note: String) throws -> Sealed {
+  /// Seals an envelope the web client can open: a note, files, or both.
+  ///
+  /// The envelope and every attachment share one data key and are bound to this
+  /// id, and each attachment to its position in the file list, which is what stops
+  /// a ciphertext from being served under another id or at another index. The key
+  /// exists for this one envelope, so a fresh random IV per ciphertext is nowhere
+  /// near the birthday bound that makes GCM nonce reuse dangerous.
+  ///
+  /// Nothing here caps anything. What one instance will store is the instance's
+  /// answer and `Attach`'s mirror of it, and a crypto function that silently
+  /// refused a size would be a cap in a place nobody would look for one.
+  public static func seal(note: String? = nil, files: [FileToSeal] = []) throws -> Sealed {
+    guard note != nil || !files.isEmpty else {
+      throw SealFailure.nothingToSeal
+    }
+
     let id = newSecretId()
     let keyBytes = randomBytes(fragmentKeyBytes)
     let key = SymmetricKey(data: keyBytes)
-    let iv = randomBytes(ivBytes)
 
     // Built by hand rather than through JSONEncoder so the shape stays literally
-    // the one envelope.ts writes: a version and the parts that are present.
-    let contents: [String: Any] = ["note": note, "v": envelopeVersion]
+    // the one envelope.ts writes: a version and the parts that are present. An
+    // absent part has no key at all, which is why an empty file list is omitted
+    // rather than sent as `[]`.
+    var contents: [String: Any] = ["v": envelopeVersion]
+    if let note {
+      contents["note"] = note
+    }
+    if !files.isEmpty {
+      contents["files"] = files.map { ["name": $0.name, "size": $0.bytes.count, "type": $0.type] }
+    }
     let plaintext = try JSONSerialization.data(
       withJSONObject: contents, options: [.sortedKeys]
     )
 
-    let box = try AES.GCM.seal(
-      plaintext,
-      using: key,
-      nonce: try AES.GCM.Nonce(data: iv),
-      authenticating: envelopeAad(id: id)
-    )
+    let envelope = try sealOne(plaintext, key: key, aad: envelopeAad(id: id))
+    let attachments = try files.enumerated().map { index, file in
+      let sealed = try sealOne(file.bytes, key: key, aad: attachmentAad(id: id, index: index))
+      return AttachmentCiphertext(ciphertext: sealed.ciphertext, index: index, iv: sealed.iv)
+    }
 
     return Sealed(
-      ciphertext: base64url(box.ciphertext + box.tag),
+      attachments: attachments,
+      ciphertext: envelope.ciphertext,
       fragmentToken: encodeFragmentToken(key: keyBytes),
       id: id,
-      iv: base64url(iv)
+      iv: envelope.iv
     )
+  }
+
+  /// One ciphertext, encoded the way the wire carries it.
+  private static func sealOne(_ plaintext: Data, key: SymmetricKey, aad: Data) throws -> Ciphertext {
+    let iv = randomBytes(ivBytes)
+    let box = try AES.GCM.seal(
+      plaintext, using: key, nonce: try AES.GCM.Nonce(data: iv), authenticating: aad
+    )
+
+    // Web Crypto hands back ciphertext with the tag already appended and
+    // CryptoKit keeps them apart, so they are joined here in that order.
+    return Ciphertext(ciphertext: base64url(box.ciphertext + box.tag), iv: base64url(iv))
   }
 
   // MARK: - Additional data

@@ -93,10 +93,98 @@ public enum SecureSendAPI {
     throw Failure.idTaken
   }
 
+  /// The same call for files, which does not block and must not.
+  ///
+  /// Nothing is waiting on a pasteboard here: the Finder Service answers the host
+  /// nothing and puts the link on the general clipboard when there is one. So this
+  /// is the ordinary async call, and the main thread stays free to draw a menu bar
+  /// and open a panel while ten megabytes go up.
+  ///
+  /// The deadline is longer than the note path's for the same reason.
+  public static func createLink(
+    files: [SecureSendCrypto.FileToSeal],
+    expiry: Expiry = .oneDay,
+    timeout: TimeInterval = 60
+  ) async throws -> String {
+    for attempt in 0..<2 {
+      do {
+        return try await attemptCreate(files: files, expiry: expiry, timeout: timeout)
+      } catch Failure.idTaken where attempt == 0 {
+        continue
+      }
+    }
+    throw Failure.idTaken
+  }
+
+  // MARK: - Inside
+
   private final class Box: @unchecked Sendable {
     var data: Data?
     var response: URLResponse?
     var error: Error?
+  }
+
+  /// One sealed envelope and the link it will be, prepared together.
+  ///
+  /// The id and the key are both chosen locally, so the link is known before the
+  /// request is made and the response only confirms the row landed. The fragment
+  /// is in here and never in `body`, which is the whole reason the two are built
+  /// in one place and carried as one value.
+  private struct Attempt {
+    let body: Data
+    let link: String
+  }
+
+  private static func prepare(
+    note: String?,
+    files: [SecureSendCrypto.FileToSeal],
+    expiry: Expiry
+  ) throws -> Attempt {
+    let sealed = try SecureSendCrypto.seal(note: note, files: files)
+
+    return Attempt(
+      body: try JSONSerialization.data(
+        withJSONObject: [
+          "attachments": sealed.attachments.map {
+            ["ciphertext": $0.ciphertext, "index": $0.index, "iv": $0.iv]
+          },
+          "envelope": ["ciphertext": sealed.ciphertext, "iv": sealed.iv],
+          "expiry": expiry.rawValue,
+          "id": sealed.id,
+        ],
+        options: [.sortedKeys]
+      ),
+      link: "\(origin)/s/\(sealed.id)#\(sealed.fragmentToken)"
+    )
+  }
+
+  private static func post(_ attempt: Attempt, timeout: TimeInterval) -> URLRequest {
+    guard let url = URL(string: "\(origin)/api/secrets") else {
+      preconditionFailure("the api origin is not a url")
+    }
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.httpBody = attempt.body
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = timeout
+    return request
+  }
+
+  /// The answer, read the same way whichever call made it.
+  private static func link(
+    from http: HTTPURLResponse,
+    data: Data?,
+    attempt: Attempt
+  ) throws -> String {
+    if http.statusCode == 409 {
+      throw Failure.idTaken
+    }
+    guard http.statusCode == 201 else {
+      throw Failure.refused(http.statusCode, data.map { detail($0) } ?? "")
+    }
+
+    return attempt.link
   }
 
   private static func attemptCreate(
@@ -104,25 +192,11 @@ public enum SecureSendAPI {
     expiry: Expiry,
     timeout: TimeInterval
   ) throws -> String {
-    let sealed = try SecureSendCrypto.seal(note: note)
-
-    var request = URLRequest(url: URL(string: "\(origin)/api/secrets")!)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.timeoutInterval = timeout
-    request.httpBody = try JSONSerialization.data(
-      withJSONObject: [
-        "attachments": [],
-        "envelope": ["ciphertext": sealed.ciphertext, "iv": sealed.iv],
-        "expiry": expiry.rawValue,
-        "id": sealed.id,
-      ],
-      options: [.sortedKeys]
-    )
+    let attempt = try prepare(note: note, files: [], expiry: expiry)
 
     let box = Box()
     let done = DispatchSemaphore(value: 0)
-    URLSession.shared.dataTask(with: request) { data, response, error in
+    URLSession.shared.dataTask(with: post(attempt, timeout: timeout)) { data, response, error in
       box.data = data
       box.response = response
       box.error = error
@@ -138,17 +212,18 @@ public enum SecureSendAPI {
     guard let http = box.response as? HTTPURLResponse else {
       throw Failure.offline("no response")
     }
-    if http.statusCode == 409 {
-      throw Failure.idTaken
-    }
-    guard http.statusCode == 201 else {
-      let detail = box.data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-      throw Failure.refused(http.statusCode, detail)
-    }
 
-    // The id and the key were both chosen locally, so the link is already known;
-    // the response only confirms the row landed. The fragment is appended here and
-    // never sent anywhere.
-    return "\(origin)/s/\(sealed.id)#\(sealed.fragmentToken)"
+    return try link(from: http, data: box.data, attempt: attempt)
+  }
+
+  private static func attemptCreate(
+    files: [SecureSendCrypto.FileToSeal],
+    expiry: Expiry,
+    timeout: TimeInterval
+  ) async throws -> String {
+    let attempt = try prepare(note: nil, files: files, expiry: expiry)
+    let (data, http) = try await send(post(attempt, timeout: timeout))
+
+    return try link(from: http, data: data, attempt: attempt)
   }
 }

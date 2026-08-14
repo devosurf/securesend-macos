@@ -5,6 +5,7 @@ import SecureSendKit
 //
 //   vector seal <note>          prints the sealed envelope as json, no network
 //   vector create <note> [1h]   posts to securesend.dev and prints the link
+//   vector send <path>...       the Finder service without Finder. Posts the files
 //   vector status <link>        asks what is at a link, destroys nothing
 //   vector consume <link>       the receiving side, end to end. DESTROYS the link
 //   vector updates [0.2.0]      what the releases api names, and how it ranks
@@ -52,6 +53,24 @@ case "seal":
 case "create":
   let expiry = SecureSendAPI.Expiry(rawValue: args.count > 3 ? args[3] : "1h") ?? .oneHour
   print(try SecureSendAPI.createLink(note: note, expiry: expiry))
+
+case "send":
+  // Everything the Finder service does except the right-click, so the caps, the
+  // envelope and the wire can be checked without a human holding a mouse.
+  // The refusal is printed rather than raised, because the sentence somebody
+  // would read in the panel is the thing worth checking from here.
+  let files: [SecureSendCrypto.FileToSeal]
+  do {
+    files = try Attach.read(args.dropFirst(2).map { URL(fileURLWithPath: $0) })
+  } catch {
+    let sentence = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+    FileHandle.standardError.write(Data("\(sentence)\n".utf8))
+    exit(1)
+  }
+  for file in files {
+    print("file:      \(file.name) (\(file.bytes.count) bytes, \(file.type.isEmpty ? "no type" : file.type))")
+  }
+  print(try await SecureSendAPI.createLink(files: files, expiry: .oneHour))
 
 case "status":
   let found = try await SecureSendAPI.status(id: linkArgument().id)

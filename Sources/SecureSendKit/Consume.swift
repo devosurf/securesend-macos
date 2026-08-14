@@ -176,7 +176,10 @@ extension SecureSendAPI {
     return request
   }
 
-  private static func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+  /// Internal rather than private because the async create posts through it too:
+  /// one place turns a url error into one of ours, so an offline machine reads
+  /// the same whichever call was making.
+  static func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
     let data: Data
     let response: URLResponse
     do {
@@ -205,7 +208,7 @@ extension SecureSendAPI {
   }
 
   /// The api's own words for a refusal, which never carry any part of a secret.
-  private static func detail(_ data: Data) -> String {
+  static func detail(_ data: Data) -> String {
     struct Refusal: Decodable { let error: String }
 
     return (try? JSONDecoder().decode(Refusal.self, from: data))?.error
