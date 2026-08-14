@@ -22,9 +22,12 @@ pkill -x SecureSend || true
 BIN="$(swift build -c release --package-path "$ROOT" --show-bin-path)/SecureSend"
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$BIN" "$APP/Contents/MacOS/SecureSend"
+# The Dock and Finder icon. Committed rather than drawn here, so a build never
+# depends on being able to render one. scripts/icon.sh regenerates it.
+cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 # A real identity signs with a secure timestamp, because notarization refuses a
 # bundle without one. Ad-hoc signing cannot have one at all.

@@ -20,6 +20,7 @@ let package = Package(
     // Development CLIs, not shipped in the bundle.
     .executableTarget(name: "vector", dependencies: ["SecureSendKit"]),
     .executableTarget(name: "preview", dependencies: ["SecureSendKit"]),
+    .executableTarget(name: "icon", dependencies: ["SecureSendKit"]),
 
     // Offline checks on the parts that must agree with packages/crypto byte for
     // byte. Nothing here touches the network.

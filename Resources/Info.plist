@@ -6,6 +6,10 @@
 	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>SecureSend</string>
+	<!-- Named without its extension, which is how Info.plist refers to an icon.
+	     The file is generated from the mark by scripts/icon.sh. -->
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.securesend.mac</string>
 	<key>CFBundleInfoDictionaryVersion</key>
