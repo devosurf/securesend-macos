@@ -1,0 +1,20 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build -c release
+      - name: Assemble the bundle
+        # DEST keeps the runner's assembly out of ~/Applications, and the script's
+        # lsregister and pbs steps are harmless on a throwaway runner.
+        run: DEST="$RUNNER_TEMP/apps" ./scripts/build.sh
+      - name: Check the envelope still seals
+        run: ./.build/release/vector seal "ci smoke test"
