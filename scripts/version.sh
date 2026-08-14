@@ -58,7 +58,11 @@ if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
 	git -C "$ROOT" commit --quiet -am "release: v$VERSION"
 fi
 
-git -C "$ROOT" tag "v$VERSION"
+# Annotated, not lightweight. `git push --follow-tags` carries annotated tags
+# along with the commit and ignores lightweight ones, so a lightweight tag here
+# means the commit lands, the tag stays home, and no release ever runs. Nothing
+# reports that: the push succeeds and the release simply never happens.
+git -C "$ROOT" tag -a "v$VERSION" -m "v$VERSION"
 
 echo "committed and tagged v$VERSION."
 echo "push it and the release builds itself:"
