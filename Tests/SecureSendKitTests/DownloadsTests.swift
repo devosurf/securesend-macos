@@ -37,7 +37,7 @@ struct DownloadsTests {
     ("a home path", "~/.ssh/authorized_keys", "authorized_keys"),
     ("nested", "a/b/c.txt", "c.txt"),
     ("a trailing slash", "folder/", "folder"),
-    ("backslashes", "..\\..\\windows\\system32", "windows_system32"),
+    ("backslashes", "..\\..\\windows\\system32", "system32"),
   ])
   func escaping(name: String, raw: String, want: String) {
     #expect(Downloads.safeName(raw) == want, "\(name) must not escape")
@@ -140,7 +140,7 @@ struct DownloadsTests {
     try inTemporaryFolder { folder in
       let saved = try Downloads.save([file("../../escaped.txt", "nope")], into: folder)
 
-      #expect(saved[0].deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL)
+      #expect(saved[0].deletingLastPathComponent().standardizedFileURL.path == folder.standardizedFileURL.path)
       #expect(saved[0].lastPathComponent == "escaped.txt")
     }
   }

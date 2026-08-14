@@ -7,34 +7,22 @@ import SecureSendKit
 // command-C and command-V, which needs Accessibility, so selection replacement
 // stays the right-click's job and the keyboard path goes through the clipboard.
 //
+// Sending:
 //   1. right-click > Services > "Replace with SecureSend link"
 //   2. right-click > Services > "Copy as SecureSend link", for hosts that will
 //      not take a replacement
 //   3. the menu bar item > Generate from clipboard, when there is no live selection
 //
+// Receiving, which is the same trip backwards:
+//   4. control-shift-V, or the menu bar item > Open link from clipboard
+//
+// The receiving side never reads the clipboard to find out whether there is a
+// link on it, and never opens one without saying first that opening destroys it.
+// See Clipboard.swift and Consume.swift.
+//
 // Nothing here ever logs the link. The link contains the fragment token, and the
 // fragment token contains the key: writing one to a log file would undo the whole
-// product. Lengths and hosts only.
-
-private let logURL = URL(
-  fileURLWithPath: NSString(string: "~/Library/Logs/securesend.log").expandingTildeInPath
-)
-
-private func log(_ fields: String...) {
-  let stamp = ISO8601DateFormatter().string(from: Date())
-  let host = NSWorkspace.shared.frontmostApplication.map {
-    "\($0.localizedName ?? "?") (\($0.bundleIdentifier ?? "?"))"
-  } ?? "unknown"
-  let line = ([stamp, host] + fields).joined(separator: "\t") + "\n"
-  guard let data = line.data(using: .utf8) else { return }
-  if let handle = try? FileHandle(forWritingTo: logURL) {
-    defer { try? handle.close() }
-    _ = try? handle.seekToEnd()
-    try? handle.write(contentsOf: data)
-  } else {
-    try? data.write(to: logURL)
-  }
-}
+// product. Lengths and hosts only. See Log.swift.
 
 /// A right-click has no screen to choose an expiry on, so the app picks one.
 private let defaultExpiry = SecureSendAPI.Expiry.oneDay
@@ -59,6 +47,17 @@ final class StatusUI {
       keyEquivalent: ""
     )
     generate.target = AppActions.shared
+
+    // The other direction. It carries the hotkey's own combination so the menu
+    // teaches the shortcut rather than the two drifting apart.
+    let consume = menu.addItem(
+      withTitle: "Open link from clipboard",
+      action: #selector(AppActions.consumeFromClipboard),
+      keyEquivalent: GlobalHotkey.menuKeyEquivalent.key
+    )
+    consume.keyEquivalentModifierMask = GlobalHotkey.menuKeyEquivalent.modifiers
+    consume.target = AppActions.shared
+
     menu.addItem(.separator())
     menu.addItem(
       withTitle: "Or select text anywhere, then right-click", action: nil, keyEquivalent: ""
@@ -125,6 +124,10 @@ final class AppActions: NSObject {
       StatusUI.shared.flash("exclamationmark.triangle.fill")
       NSSound.beep()
     }
+  }
+
+  @objc func consumeFromClipboard() {
+    Consume.fromClipboard()
   }
 
   @objc func revealLog() {
@@ -195,10 +198,23 @@ final class ServiceProvider: NSObject {
   }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  /// Held for the process's life: releasing it unregisters the hotkey.
+  private let hotkey = GlobalHotkey()
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     StatusUI.shared.install()
-    log("boot", "pid=\(ProcessInfo.processInfo.processIdentifier)")
+
+    // A combination somebody else already owns is not worth a modal on login.
+    // Every other way in still works, and the menu item says the same thing.
+    let registered = hotkey.install { Consume.fromClipboard() }
+
+    log(
+      "boot",
+      "pid=\(ProcessInfo.processInfo.processIdentifier)",
+      "hotkey=\(registered ? "control-shift-V" : "unavailable")"
+    )
   }
 }
 

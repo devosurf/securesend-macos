@@ -36,9 +36,16 @@ public enum SecureSendLink {
       return .notALink
     }
 
+    // Hosts and schemes are case-insensitive, and a link that came back through a
+    // mail client may well have been touched. Everything after them is not: an id
+    // is base64url, where case is meaning.
+    //
+    // The credentials check is not redundant. `https://securesend.dev@evil.test/`
+    // has a host of `evil.test`, so the host check already refuses it; this
+    // refuses the shape outright rather than resting on that.
     guard
-      components.scheme == origin.scheme,
-      components.host == origin.host,
+      components.scheme?.lowercased() == origin.scheme?.lowercased(),
+      components.host?.lowercased() == origin.host?.lowercased(),
       components.port == origin.port,
       components.user == nil,
       components.password == nil

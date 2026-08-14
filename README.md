@@ -1,12 +1,14 @@
 # SecureSend for macOS
 
 Select a secret anywhere on your Mac, right-click, and it becomes a one-time
-SecureSend link. The link opens once, then it is gone.
+SecureSend link. The link opens once, then it is gone. Press control-shift-V on
+somebody else's link and it opens back into a secret, without a browser.
 
 The app asks for zero permissions. No Accessibility, no Input Monitoring, no
-notifications, nothing. macOS Services are the whole mechanism: the system hands
-the app your selection, the app hands back a link, and the host application puts
-it where the selection was.
+notifications, nothing. macOS Services are the whole mechanism on the way out:
+the system hands the app your selection, the app hands back a link, and the host
+application puts it where the selection was. On the way back in, the app never
+reads your clipboard to find out whether there is a link on it.
 
 The secret is encrypted on your machine before anything leaves it, with the same
 AES-256-GCM envelope the web app uses. The key rides in the link's fragment, the
@@ -25,9 +27,36 @@ it like one.**
   that will not take a replacement, and for text you cannot edit.
 - **Generate from clipboard.** From the menu bar item, for when there is no live
   selection.
+- **Open link from clipboard.** The reverse. Copy a SecureSend link somebody sent
+  you, press control-shift-V, and the app opens it: the note lands on your
+  clipboard, files land in your Downloads folder.
 
 Links expire in 24 hours, the same default the web app starts from. A right-click
 has no screen to choose an expiry on, so the app picks the one you would have.
+
+## Opening a link
+
+Opening is the one thing this product does that cannot be undone, so the app
+takes the long way round.
+
+It never reads your clipboard to find out whether a link is on it. macOS 15.4
+added an alert for programmatic pasteboard reads, on by default from macOS 26,
+and a secrets app that trips it on every keypress reads as a clipboard snooper.
+Instead the app asks the system what patterns it can see, which answers without
+handing over the contents and without the alert.
+
+Before anything is destroyed it asks securesend.dev what is at the link. That
+call is a plain lookup with no path to a write, so a link that is already spent,
+expired or destroyed says so without costing you a press. Only a live link gets
+the confirmation panel, and only the panel's own button sends the reveal.
+
+A password-protected link is handed to your browser instead. The app can tell
+from the fragment alone, before it asks the server anything, and the web page
+already knows how to prompt, how to let a wrong password be tried again, and how
+to say what opening costs. Opening that page destroys nothing on its own.
+
+If a link arrives without the part after the `#`, the app says so and stops.
+That part is the key, chat clients drop it, and there is nothing to request.
 
 Neither Service ships with a keyboard shortcut, because every obvious combination
 already belongs to something. Assign your own under System Settings > Keyboard >
@@ -55,22 +84,41 @@ Services caching. `./scripts/build.sh` flushes it, and a logout always fixes it.
 
 ### Layout
 
-| Path                    | What it is                                            |
-| ----------------------- | ----------------------------------------------------- |
-| `Sources/SecureSend`    | the menu bar app and the two Service handlers          |
-| `Sources/SecureSendKit` | the crypto envelope, the API call, the mark            |
-| `Sources/vector`        | prints a sealed envelope, for checking against the web |
-| `Sources/preview`       | renders the menu bar mark at candidate sizes           |
-| `Resources/Info.plist`  | the Services registration, which is the whole contract |
+| Path                     | What it is                                              |
+| ------------------------ | ------------------------------------------------------- |
+| `Sources/SecureSend`     | the menu bar app, the Service handlers, the consume flow |
+| `Sources/SecureSendKit`  | the crypto envelope, the API calls, the mark             |
+| `Sources/vector`         | seals, creates and consumes from the terminal            |
+| `Sources/preview`        | renders the menu bar mark at candidate sizes             |
+| `Tests/SecureSendKitTests` | the offline checks, including the cross-implementation ones |
+| `Resources/Info.plist`   | the Services registration, which is the whole contract   |
 
 SwiftPM builds the binaries and `scripts/build.sh` assembles the `.app` around
 them, because SwiftPM has no notion of an application bundle and the Services
 live entirely in the Info.plist.
 
-The envelope in `Sources/SecureSendKit/Crypto.swift` is a CryptoKit port of the
-web app's `packages/crypto`. Every constant is named after its counterpart there,
-so drift in either shows up as a failed round trip. `vector seal <note>` prints
-what this app would send, for checking that by hand.
+The envelope in `Sources/SecureSendKit` is a CryptoKit port of the web app's
+`packages/crypto`. Every constant is named after its counterpart there, so drift
+in either shows up as a failed round trip.
+
+```sh
+swift test
+```
+
+`Tests/SecureSendKitTests/Fixtures/envelopes.json` holds envelopes sealed by
+`packages/crypto` itself, covering notes, logins, files, unicode and a
+password-protected one. Opening them in Swift is the check that the two
+implementations still read each other, and it runs offline.
+`scripts/make-fixtures.ts` regenerates the file; its header says how.
+
+For checking the wire on purpose, `vector` does each step by hand:
+
+```sh
+vector seal "a note"      # the sealed envelope as json, no network
+vector create "a note"    # posts it and prints the link
+vector status <link>      # what is at a link. Destroys nothing
+vector consume <link>     # the receiving side, end to end. Destroys the link
+```
 
 ## Getting it
 

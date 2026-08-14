@@ -12,6 +12,11 @@ jobs:
       - uses: actions/checkout@v5
       - name: Build
         run: swift build -c release
+      - name: Test
+        # Offline. The envelopes in Tests/.../Fixtures were sealed by
+        # packages/crypto, so this is the check that the two implementations
+        # still read each other.
+        run: swift test
       - name: Assemble the bundle
         # DEST keeps the runner's assembly out of ~/Applications, and the script's
         # lsregister and pbs steps are harmless on a throwaway runner.

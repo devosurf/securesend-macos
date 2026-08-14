@@ -30,6 +30,28 @@ struct LinkTests {
     #expect(SecureSendLink.read(text) == .link(id: id, fragment: token))
   }
 
+  /// A host is case-insensitive and a link that came back through a mail client
+  /// may well have been touched. An id is not: base64url is case-sensitive, and
+  /// the refusal test below covers that side.
+  @Test(
+    "the scheme and host are read case-insensitively",
+    arguments: [
+      "https://SecureSend.dev/s/\(id)#\(token)",
+      "https://SECURESEND.DEV/s/\(id)#\(token)",
+      "HTTPS://securesend.dev/s/\(id)#\(token)",
+    ]
+  )
+  func hostCase(text: String) {
+    #expect(SecureSendLink.read(text) == .link(id: id, fragment: token))
+  }
+
+  @Test("an id with its case changed is a different id, and is refused")
+  func idCase() {
+    let flipped = "zfkg_MxQCJQmB5Fu3wJv0q"
+    #expect(flipped != id)
+    #expect(SecureSendLink.read("https://securesend.dev/s/\(flipped)#\(token)") != .link(id: id, fragment: token))
+  }
+
   @Test("a link without its fragment is incomplete, not openable")
   func withoutFragment() {
     #expect(SecureSendLink.read("https://securesend.dev/s/\(id)") == .incomplete)
