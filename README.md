@@ -152,6 +152,16 @@ vector updates 0.1.0      # what the releases api names, and how it ranks
 
 ## Getting it
 
+```sh
+brew install --cask devosurf/tap/securesend
+```
+
+That is the same notarized dmg the release page serves, taken through Homebrew so
+that `brew upgrade` keeps it current. The tap is
+[devosurf/homebrew-tap](https://github.com/devosurf/homebrew-tap), our own rather
+than homebrew-cask proper, which has notability requirements this project does
+not meet yet.
+
 Every release carries the same dmg under two names. Link to this one and it
 always resolves to the newest release, so nothing has to be edited when a
 version ships:
@@ -164,6 +174,9 @@ The versioned `SecureSend-X.Y.Z.dmg` beside it is the one to keep if you want to
 check a download against the sha256 in the release notes.
 
 ## Staying current
+
+If you installed with Homebrew, `brew upgrade --cask securesend` is the whole
+story, and the rest of this section is for everyone who took the dmg.
 
 **Check for updates** in the menu asks GitHub for the latest release and compares
 it against the version this copy was built with. If there is a newer one it
@@ -197,6 +210,14 @@ runner, which builds the app, signs it with the Developer ID certificate,
 notarizes it with Apple, staples the ticket to both the app and the dmg, and
 attaches `SecureSend-0.2.0.dmg` to the GitHub release with its sha256 in the
 notes. Nothing between the tag and the download is done by hand.
+
+The last step of that workflow bumps the Homebrew cask in
+[devosurf/homebrew-tap](https://github.com/devosurf/homebrew-tap) to the version
+and sha256 it just published, so `brew upgrade` has the new one the moment the
+release page does. It needs a `TAP_TOKEN` secret here: a fine-grained token with
+contents write on that one repository, because the workflow's own `GITHUB_TOKEN`
+cannot write outside this one. Without it the step says so and the release still
+ships, which is what a fork with no tap of ours wants.
 
 `./scripts/package.sh` is the same build, runnable here. With
 `SIGN_IDENTITY` alone it produces a signed dmg that only opens on this machine,
