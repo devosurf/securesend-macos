@@ -92,6 +92,38 @@ struct LinkTests {
     )
   }
 
+  // MARK: - Building one back
+
+  /// The bug this pins: `read` validates a trimmed copy, so a link that arrived
+  /// with a newline in front of it passes every check while the original string
+  /// is still something `URL(string:)` refuses. A password link is handed to the
+  /// browser, so reusing that original was a link that validated and then went
+  /// nowhere. Rebuilding from the checked parts cannot do that.
+  @Test(
+    "a link that arrived with whitespace still builds a usable url",
+    arguments: [good, "  \(good)", "\n\(good)", "\n\t \(good) \n"]
+  )
+  func buildsPastWhitespace(text: String) throws {
+    guard case .link(let id, let fragment) = SecureSendLink.read(text) else {
+      Issue.record("the link did not read")
+      return
+    }
+
+    let url = try #require(SecureSendLink.url(id: id, fragment: fragment))
+
+    #expect(url.absoluteString == good)
+    #expect(url.fragment == token)
+  }
+
+  /// The half of that bug that is easy to miss: a trailing newline survives
+  /// `URL(string:)` and a leading one does not, so testing only the tidy case
+  /// would have passed.
+  @Test("the raw clipboard string is not what gets opened")
+  func rawStringIsNotUsable() {
+    #expect(URL(string: " \(good)") == nil)
+    #expect(SecureSendLink.url(id: id, fragment: token)?.absoluteString == good)
+  }
+
   /// A link the app itself just made has to be one the app can read back.
   @Test("a link this app builds reads back")
   func roundTrip() throws {

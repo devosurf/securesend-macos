@@ -16,10 +16,10 @@ public enum SecureSendAPI {
   }
 
   public enum Failure: LocalizedError, Sendable {
-    case idTaken
     /// The link was real and there is nothing left to take. The status is what
     /// the instance knows about the corpse, when it sent one.
     case alreadyGone(SecretStatus?)
+    case idTaken
     /// No row was ever stored under that id, which is also what a probe gets.
     case nothingThere
     case offline(String)
@@ -28,10 +28,10 @@ public enum SecureSendAPI {
 
     public var errorDescription: String? {
       switch self {
-      case .idTaken:
-        return "SecureSend could not pick a free id. Try again."
       case .alreadyGone(let status):
         return status.map(Self.gone) ?? "That link has already been used."
+      case .idTaken:
+        return "SecureSend could not pick a free id. Try again."
       case .nothingThere:
         return "There is nothing at that link."
       case .offline(let detail):

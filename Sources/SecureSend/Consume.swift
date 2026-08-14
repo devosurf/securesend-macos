@@ -44,11 +44,11 @@ enum Consume {
       )
 
     case .link(let id, let fragment):
-      await consume(id: id, fragment: fragment, link: text)
+      await consume(id: id, fragment: fragment)
     }
   }
 
-  private static func consume(id: String, fragment: String, link: String) async {
+  private static func consume(id: String, fragment: String) async {
     guard case .ok(let token) = SecureSendCrypto.decodeFragmentToken(fragment) else {
       tell(
         "That link is missing its key.",
@@ -63,9 +63,10 @@ enum Consume {
     // tried again, and how to say what opening costs. Nothing is destroyed by
     // opening it: the page reveals on a press, not on arrival.
     if token.needsPassword {
-      // `read` parsed this as a url a moment ago, so this cannot fail. If it ever
-      // does, saying nothing would be a link silently going nowhere.
-      guard let url = URL(string: link) else {
+      // Rebuilt from the two checked parts rather than reused from the clipboard,
+      // which may still carry the newline a chat client left on the front of it.
+      // See SecureSendLink.url.
+      guard let url = SecureSendLink.url(id: id, fragment: fragment) else {
         tell("SecureSend could not open that link.", "Open it in your browser.", style: .warning)
         return
       }

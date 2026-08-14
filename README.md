@@ -4,11 +4,15 @@ Select a secret anywhere on your Mac, right-click, and it becomes a one-time
 SecureSend link. The link opens once, then it is gone. Press control-shift-V on
 somebody else's link and it opens back into a secret, without a browser.
 
-The app asks for zero permissions. No Accessibility, no Input Monitoring, no
-notifications, nothing. macOS Services are the whole mechanism on the way out:
-the system hands the app your selection, the app hands back a link, and the host
-application puts it where the selection was. On the way back in, the app never
-reads your clipboard to find out whether there is a link on it.
+The app asks for no Accessibility, no Input Monitoring and no notifications, and
+it never reads your clipboard to find out whether there is a link on it. macOS
+Services are the whole mechanism on the way out: the system hands the app your
+selection, the app hands back a link, and the host application puts it where the
+selection was.
+
+The one thing macOS may ask you is its standard "access files in your Downloads
+folder" consent, and only if somebody sends you a secret with files in it, at the
+moment those files are saved. Nothing else in the app touches a protected folder.
 
 The secret is encrypted on your machine before anything leaves it, with the same
 AES-256-GCM envelope the web app uses. The key rides in the link's fragment, the

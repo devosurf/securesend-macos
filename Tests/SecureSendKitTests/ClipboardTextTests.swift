@@ -13,7 +13,7 @@ struct ClipboardTextTests {
   @Test("a note alone is the note, untouched")
   func noteOnly() {
     #expect(
-      SecureSendCrypto.Opened(note: "hunter2", credentials: nil, files: []).clipboardText
+      SecureSendCrypto.Opened(credentials: nil, files: [], note: "hunter2").clipboardText
         == "hunter2"
     )
   }
@@ -23,9 +23,9 @@ struct ClipboardTextTests {
   @Test("credentials are labelled, one per line")
   func credentialsOnly() {
     let opened = SecureSendCrypto.Opened(
-      note: nil,
       credentials: SecureSendCrypto.Credentials(password: "s3cr3t", username: "root"),
-      files: []
+      files: [],
+      note: nil
     )
 
     #expect(opened.clipboardText == "username: root\npassword: s3cr3t")
@@ -34,9 +34,9 @@ struct ClipboardTextTests {
   @Test("a note comes first, then the pair, separated by a blank line")
   func both() {
     let opened = SecureSendCrypto.Opened(
-      note: "the staging box",
       credentials: SecureSendCrypto.Credentials(password: "s3cr3t", username: "root"),
-      files: []
+      files: [],
+      note: "the staging box"
     )
 
     #expect(opened.clipboardText == "the staging box\n\nusername: root\npassword: s3cr3t")
@@ -47,13 +47,13 @@ struct ClipboardTextTests {
   @Test("files alone put nothing on the clipboard")
   func filesOnly() {
     let opened = SecureSendCrypto.Opened(
-      note: nil,
       credentials: nil,
       files: [
         SecureSendCrypto.OpenedFile(
           bytes: Data("alone".utf8), name: "solo.txt", size: 5, type: "text/plain"
         )
-      ]
+      ],
+      note: nil
     )
 
     #expect(opened.clipboardText == nil)
@@ -64,7 +64,7 @@ struct ClipboardTextTests {
   @Test("an empty note is still a note")
   func emptyNote() {
     #expect(
-      SecureSendCrypto.Opened(note: "", credentials: nil, files: []).clipboardText == ""
+      SecureSendCrypto.Opened(credentials: nil, files: [], note: "").clipboardText == ""
     )
   }
 

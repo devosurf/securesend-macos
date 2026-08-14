@@ -1,11 +1,16 @@
 import AppKit
 import SecureSendKit
 
-// SecureSend, as a macOS menu bar app. Every way in is permission-free: no
-// Accessibility grant, no TCC prompt of any kind. That is a product decision, not
-// an accident. A global hotkey that replaces a selection can only work by faking
-// command-C and command-V, which needs Accessibility, so selection replacement
-// stays the right-click's job and the keyboard path goes through the clipboard.
+// SecureSend, as a macOS menu bar app. No Accessibility grant and no Input
+// Monitoring, ever. That is a product decision, not an accident. A global hotkey
+// that replaces a selection can only work by faking command-C and command-V,
+// which needs Accessibility, so selection replacement stays the right-click's job
+// and the keyboard path goes through the clipboard.
+//
+// One TCC prompt is reachable, and only one: saving an attachment into Downloads
+// is macOS's standard files-and-folders consent, asked at the moment a secret
+// with files in it is actually saved. Nothing else here touches a protected
+// folder, and no path asks for a permission the person has not just triggered.
 //
 // Sending:
 //   1. right-click > Services > "Replace with SecureSend link"

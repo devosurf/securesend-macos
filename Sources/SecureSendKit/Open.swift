@@ -81,7 +81,7 @@ extension SecureSendCrypto {
     public let files: [OpenedFile]
     public let note: String?
 
-    public init(note: String?, credentials: Credentials?, files: [OpenedFile]) {
+    public init(credentials: Credentials?, files: [OpenedFile], note: String?) {
       self.credentials = credentials
       self.files = files
       self.note = note
@@ -177,7 +177,7 @@ extension SecureSendCrypto {
       return OpenedFile(bytes: bytes, name: meta.name, size: meta.size, type: meta.type)
     }
 
-    return Opened(note: contents.note, credentials: contents.credentials, files: files)
+    return Opened(credentials: contents.credentials, files: files, note: contents.note)
   }
 
   // MARK: - Inside

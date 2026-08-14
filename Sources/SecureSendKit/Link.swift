@@ -21,6 +21,20 @@ public enum SecureSendLink {
     case notALink
   }
 
+  /// The link those two parts make, built rather than quoted.
+  ///
+  /// Whatever arrived on the clipboard is not it. `read` validates a trimmed
+  /// copy, so the original may still carry the leading newline a chat client left
+  /// on it, and `URL(string:)` refuses a string with leading whitespace even when
+  /// the same string parsed fine once trimmed. Handing that original to the
+  /// browser is a link that passed every check and then goes nowhere.
+  ///
+  /// Building it from the id and the fragment cannot fail: both have been checked,
+  /// and the origin is a constant.
+  public static func url(id: String, fragment: String) -> URL? {
+    URL(string: "\(SecureSendAPI.origin)/s/\(id)#\(fragment)")
+  }
+
   /// Reads the text as a link, or says why it is not one.
   ///
   /// The fragment is carried across verbatim. Whether it is a key is the fragment
